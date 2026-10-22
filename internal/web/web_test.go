@@ -791,3 +791,64 @@ func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
 		}
 	}
 }
+
+// The status line at the bottom shows the version, and the About box shows where the source lives.
+func TestStatusLineAndAboutBox(t *testing.T) {
+	e := newEnvWith(t, Options{About: About{Version: "1.2.3", Commit: "0123456789abcdef0123", RepoURL: "https://github.com/example/photothing", Author: "Ton Kersten"}})
+	for _, path := range []string{"/login", "/"} { // every page, signed in or not
+		c := e.client()
+		if path == "/" {
+			c = e.login("vera")
+		}
+		body := c.mustGet(path)
+		for _, want := range []string{
+			`<footer class="status">`, `<span>PhotoThing 1.2.3</span>`, `data-about-open`, `<dialog class="about"`,
+			`<dd>1.2.3 <small class="muted">(0123456789ab)</small></dd>`, // the commit is shortened
+			`<a href="https://github.com/example/photothing" target="_blank" rel="noopener noreferrer">https://github.com/example/photothing</a>`,
+			`<dt>Author</dt><dd>Ton Kersten</dd>`,
+			`/static/about.js?v=`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s lacks %s", path, want)
+			}
+		}
+	}
+	_, js, _ := e.client().get("/static/about.js")
+	if !strings.Contains(js, "showModal") {
+		t.Error("about.js is not served")
+	}
+
+	// Dutch
+	c := e.login("vera")
+	c.post("/prefs", url.Values{"lang": {"nl"}, "next": {"/"}})
+	nl := c.mustGet("/")
+	for _, want := range []string{">Over</button>", "<dt>Versie</dt>", "<dt>Broncode</dt>", "<dt>Auteur</dt><dd>Ton Kersten</dd>", "<dt>Gebouwd met</dt>", "Sluiten", "Een zelf te hosten fotogalerij."} {
+		if !strings.Contains(nl, want) {
+			t.Errorf("Dutch page lacks %s", want)
+		}
+	}
+
+	// A repository address that a browser cannot open (ssh) is shown, but not as a link.
+	ssh := newEnvWith(t, Options{About: About{Version: "0.1.0", RepoURL: "ssh://git@git.example.org:2990/Dev/photothing.git"}})
+	body := ssh.client().mustGet("/login")
+	if !strings.Contains(body, "<code>ssh://git@git.example.org:2990/Dev/photothing.git</code>") || strings.Contains(body, `href="ssh://`) {
+		t.Error("an ssh address must be shown as text, not as a link")
+	}
+	if strings.Contains(body, "<small") {
+		t.Error("no commit known, yet the About box shows one")
+	}
+	// Without a repository address the row is left out.
+	none := newEnvWith(t, Options{About: About{Version: "0.1.0"}}).client().mustGet("/login")
+	if strings.Contains(none, "Source code") || strings.Contains(none, "<dt>Author</dt>") {
+		t.Error("source or author row shown without a value")
+	}
+	// A build without version information still says something sensible.
+	if body := newEnv(t).client().mustGet("/login"); !strings.Contains(body, "PhotoThing 0.0.0-dev") {
+		t.Error("default version missing")
+	}
+	// Untrusted text in the fields cannot break out of the page.
+	evil := newEnvWith(t, Options{About: About{Version: "1.0.0", RepoURL: `https://x.example/"><script>alert(1)</script>`}}).client().mustGet("/login")
+	if strings.Contains(evil, "<script>alert(1)") {
+		t.Error("repository address was not escaped")
+	}
+}

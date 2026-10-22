@@ -133,6 +133,7 @@ func TestConfigFileErrors(t *testing.T) {
 		{"bad number", "backup-keep = many\n", "x.conf:1: invalid value \"many\" for \"backup-keep\""},
 		{"bad bool", "secure-cookies = maybe\n", "x.conf:1: invalid value \"maybe\""},
 		{"config inside config", "config = other.conf\n", "cannot be set inside a configuration file"},
+		{"version inside config", "version = true\n", "\"version\" cannot be set inside a configuration file"},
 		{"empty key", "= value\n", "missing key"},
 	}
 	for _, c := range cases {
@@ -258,7 +259,7 @@ func TestExampleConfigIsValidAndComplete(t *testing.T) {
 	}
 	var c config
 	newFlagSet(&c).VisitAll(func(f *flag.Flag) {
-		if f.Name == "config" {
+		if f.Name == "config" || f.Name == "version" {
 			return // cannot be set in a file
 		}
 		if !have[f.Name] {
@@ -301,5 +302,28 @@ func TestValidate(t *testing.T) {
 	dir := t.TempDir()
 	if err := run(config{data: dir, backupKeep: 0}, []string{"serve"}); err == nil || !strings.Contains(err.Error(), "backup-keep") {
 		t.Errorf("serve with backup-keep=0: %v", err)
+	}
+}
+
+// The configuration shipped in the packages must be valid for the service the packages install.
+func TestPackagedConfigIsValid(t *testing.T) {
+	clearEnv(t)
+	cfg, _, err := parseArgs([]string{"--config=packaging/photothing.conf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.data != "/var/lib/photothing" || cfg.addr != "127.0.0.1:8080" || cfg.backupDir != "/var/lib/photothing/backups" {
+		t.Errorf("packaged config parsed to %+v", cfg)
+	}
+	if err := cfg.validate(); err != nil {
+		t.Error(err)
+	}
+	// every setting it names is a real one with the same name as in config.example
+	b, _ := os.ReadFile("packaging/photothing.conf")
+	entries, _ := parseConfigFile(bytes.NewReader(b))
+	for _, e := range entries {
+		if newFlagSet(new(config)).Lookup(e.key) == nil {
+			t.Errorf("packaging/photothing.conf sets unknown %q", e.key)
+		}
 	}
 }

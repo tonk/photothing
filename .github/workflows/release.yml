@@ -1,0 +1,145 @@
+# Builds and publishes a release when a version tag is pushed:
+#
+#   git tag v1.2.3 && git push origin v1.2.3
+#
+# The tag must be a semantic version (v1.2.3, v1.2.3-rc.1) and CHANGELOG.md must have a section for it,
+# which becomes the release notes. A tag with a "-" (v1.2.3-rc.1) is published as a pre-release.
+# The release holds, for linux/amd64 and linux/arm64: a tarball, a .deb and an .rpm, plus SHA256SUMS.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NFPM_VERSION: v2.48.0
+
+jobs:
+  verify:
+    name: Check the tag
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag is a semantic version with a CHANGELOG section
+        id: check
+        run: |
+          version="$(scripts/check-release.sh "$GITHUB_REF_NAME")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  test:
+    name: Test
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # With the optional tools installed the video, HEIC and RAW tests run instead of being skipped.
+      - name: Install the optional tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libheif-examples libimage-exiftool-perl
+      - name: Formatting
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: [verify, test]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install nfpm
+        run: go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}"
+      - name: Build the binary, tarball, .deb and .rpm
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          COMMIT: ${{ github.sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          MAINTAINER: ${{ vars.MAINTAINER }}   # optional repository variable: "Name <address>"
+        run: packaging/build.sh "${{ matrix.arch }}"
+
+      # The runner is amd64, so only that build can be run. Install the .deb like a user would.
+      - name: The tarball's binary reports the tag's version
+        if: matrix.arch == 'amd64'
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          tar -xzf "dist/photothing_${VERSION}_linux_amd64.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/photothing_${VERSION}_linux_amd64/photothing" --version | tee /dev/stderr | grep -F "photothing ${VERSION} "
+      - name: The .deb installs and removes cleanly
+        if: matrix.arch == 'amd64'
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -x
+          dpkg-deb --info dist/photothing_*_amd64.deb
+          sudo apt-get install -y ./dist/photothing_*_amd64.deb
+          photothing --version | grep -F "photothing ${VERSION} "
+          id photothing
+          test "$(stat -c '%U:%G %a' /etc/photothing/photothing.conf)" = "root:photothing 640"
+          systemd-analyze verify /lib/systemd/system/photothing.service /lib/systemd/system/photothing@.service
+          photothing --config=/etc/photothing/photothing.conf config
+          sudo apt-get remove -y photothing
+          test ! -e /usr/bin/photothing
+          test -e /etc/photothing/photothing.conf   # configuration is kept on removal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.arch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums and release notes
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          (cd dist && sha256sum photothing* > SHA256SUMS && cat SHA256SUMS)
+          scripts/release-notes.sh "$VERSION" > notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" dist/* --title "PhotoThing $VERSION" --notes-file notes.md --verify-tag "${flags[@]}"

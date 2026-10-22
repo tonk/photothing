@@ -20,9 +20,9 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
 a { color: var(--accent); }
-main { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+main { width: 100%; flex: 1; max-width: 1400px; margin: 0 auto; padding: 1rem; }
 .muted, small { color: var(--muted); }
 code { background: var(--surface); border: 1px solid var(--border); padding: 0 .3em; border-radius: 4px; }
 
@@ -125,3 +125,17 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
 @media (max-width: 600px) { .search input { width: 7.5rem; } .pagesize { margin-left: 0; } }
 .langs button + button { margin-left: .45rem; }
 .pagesize label { white-space: nowrap; }
+
+/* status line and About box */
+.status { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 1rem;
+  background: var(--surface); border-top: 1px solid var(--border); color: var(--muted); font-size: .875rem; }
+dialog.about { width: calc(100% - 2rem); max-width: 28rem; padding: 1.25rem 1.5rem; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; }
+dialog.about::backdrop { background: rgba(0, 0, 0, .5); }
+dialog.about h2 { margin: 0 0 .25rem; text-align: center; }
+dialog.about p { text-align: center; margin-top: 0; }
+dialog.about dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .35rem .9rem; margin: 1rem 0; }
+dialog.about dt { color: var(--muted); }
+dialog.about dd { margin: 0; overflow-wrap: anywhere; }
+dialog.about .button { display: block; margin: 0 auto; }
+dialog.about code { padding: 0; border: 0; background: none; font-size: .8rem; }

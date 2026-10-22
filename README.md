@@ -148,10 +148,57 @@ scan result.
 Browsers play mp4/h264 and webm; other video codecs are listed but may not play in the browser.
 HEIC and RAW files are shown as a converted JPEG; the original is downloaded as is.
 
+## Versions, releases and packages
+
+Versions are [semantic versions](https://semver.org): `photothing --version` prints the one in use, and
+the footer of every page shows it (the About box also shows the commit, the source address and the
+author). The version of a release is its Git tag, `v1.2.3` meaning version `1.2.3`; between tags a build
+calls itself `1.2.3-4-g0a1b2c3`. Every change is recorded in `CHANGELOG.md`.
+
+**Making a release.** Move the entries under *Unreleased* in `CHANGELOG.md` to a new
+`## [X.Y.Z] - YYYY-MM-DD` section, commit, and push a tag:
+
+    git tag v1.2.3 && git push origin v1.2.3
+
+`.github/workflows/release.yml` then checks that the tag is a valid semantic version and that the changelog
+has a section for it, runs the tests, builds for linux/amd64 and linux/arm64, installs the `.deb` on the
+runner as a smoke test, and publishes a release with the changelog section as its notes. A tag such as
+`v1.2.3-rc.1` becomes a pre-release (`1.2.3~rc.1` in the packages, which sorts before `1.2.3`). Each release
+holds, per architecture, `photothing_X.Y.Z_linux_ARCH.tar.gz`, `photothing_X.Y.Z-1_ARCH.deb` and
+`photothing-X.Y.Z-1.ARCH.rpm`, plus `SHA256SUMS`. Set the repository variable `MAINTAINER` ("Name <address>")
+to fill the maintainer field of the packages. The workflow also sets the source address shown in the
+About box to the repository it runs in.
+
+**Installing a package.**
+
+    sudo apt install ./photothing_X.Y.Z-1_amd64.deb      # Debian, Ubuntu
+    sudo dnf install ./photothing-X.Y.Z-1.x86_64.rpm     # Fedora, RHEL and relatives
+
+The package installs the binary in `/usr/bin`, the systemd units, a configuration in
+`/etc/photothing/photothing.conf` (kept when you upgrade or remove the package) and the documentation in
+`/usr/share/doc/photothing`, and creates the system user `photothing`. It does not start anything: set
+`photos` in the configuration, then
+
+    sudo systemctl enable --now photothing
+    sudo -u photothing photothing --config=/etc/photothing/photothing.conf user add NAME admin
+
+Run commands that write (such as `user add`) as the user `photothing`, so the files belong to the
+service. Upgrading restarts a running service. Several instances: `/etc/photothing/NAME.conf` and
+`systemctl enable --now photothing@NAME`. ffmpeg, libheif's `heif-convert` and exiftool are suggested, not required.
+
+**Building locally.** `make build` builds with the version from Git, `make version` shows it, and
+`make packages` builds the tarball, `.deb` and `.rpm` into `dist/` (it needs
+[nfpm](https://nfpm.goreleaser.com): `go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0`).
+`VERSION=1.2.3 make build` overrides the version and `REPO_URL=https://github.com/OWNER/photothing make build`
+the source address.
+
 ## Layout
 
     main.go, config.go      CLI, settings and configuration file, server start-up, housekeeping
-    contrib/                example configuration, systemd template unit, nginx configuration
+    contrib/                systemd units, nginx configuration (config.example is in the root)
+    packaging/              build.sh, version.sh, nfpm.yaml and the install scripts of the .deb and .rpm
+    scripts/                what the release workflow runs: tag check, release notes
+    .github/workflows/      the release workflow
     internal/store          SQLite schema, upgrades and queries
     internal/auth           passwords, RBAC, TOTP, recovery codes, secret box, throttle
     internal/gallery        directory scan, EXIF, thumbnails, optional converters

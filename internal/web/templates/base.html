@@ -32,15 +32,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · photothing</title>
+<title>{{.Title}} · PhotoThing</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css?v={{v}}">
 <script src="/static/theme.js?v={{v}}"></script>
 <script src="/static/prefs.js?v={{v}}" defer></script>
+<script src="/static/about.js?v={{v}}" defer></script>
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="/">{{template "logo"}}<span>photothing</span></a>
+  <a class="brand" href="/">{{template "logo"}}<span>PhotoThing</span></a>
   <nav>
     {{if or .User .Public}}
     <form class="search" action="/search" method="get" role="search">
@@ -67,5 +68,23 @@
 {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 {{template "content" .}}
 </main>
+<footer class="status">
+  <span>PhotoThing {{.About.Version}}</span>
+  <button type="button" class="link" data-about-open aria-haspopup="dialog">{{t "About"}}</button>
+</footer>
+<dialog class="about" id="about" aria-labelledby="about-title">
+  <form method="dialog">
+    <div class="hero">{{template "logo"}}</div>
+    <h2 id="about-title">PhotoThing</h2>
+    <p class="muted">{{t "A self-hosted photo gallery."}}</p>
+    <dl>
+      <dt>{{t "Version"}}</dt><dd>{{.About.Version}}{{if .About.Commit}} <small class="muted">({{.About.Commit}})</small>{{end}}</dd>
+      {{if .About.RepoURL}}<dt>{{t "Source code"}}</dt><dd>{{if .About.RepoLink}}<a href="{{.About.RepoURL}}" target="_blank" rel="noopener noreferrer">{{.About.RepoURL}}</a>{{else}}<code>{{.About.RepoURL}}</code>{{end}}</dd>{{end}}
+      {{if .About.Author}}<dt>{{t "Author"}}</dt><dd>{{.About.Author}}</dd>{{end}}
+      <dt>{{t "Built with"}}</dt><dd>{{.About.Go}}</dd>
+    </dl>
+    <button class="button">{{t "Close"}}</button>
+  </form>
+</dialog>
 </body>
 </html>{{end}}

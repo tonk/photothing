@@ -104,6 +104,15 @@ var nl = map[string]string{
 	"Code":                "Code",
 	"Verify":              "Verifiëren",
 
+	// status line and About box
+	"About":                        "Over",
+	"A self-hosted photo gallery.": "Een zelf te hosten fotogalerij.",
+	"Version":                      "Versie",
+	"Source code":                  "Broncode",
+	"Author":                       "Auteur",
+	"Built with":                   "Gebouwd met",
+	"Close":                        "Sluiten",
+
 	// gallery
 	"No photos yet. An editor or admin can run a scan from the Admin page.": "Nog geen foto's. Een redacteur of beheerder kan op de pagina Beheer een scan starten.",
 	"Album not found.":                       "Album niet gevonden.",

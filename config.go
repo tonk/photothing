@@ -27,6 +27,7 @@ type config struct {
 	backupKeep         int
 	backupEvery        time.Duration
 	configFile         string
+	showVersion        bool
 }
 
 // flagOutput is where flag errors and usage are written (replaced in tests).
@@ -49,6 +50,7 @@ func newFlagSet(cfg *config) *flag.FlagSet {
 	fs.StringVar(&cfg.backupDir, "backup-dir", env("PHOTOTHING_BACKUP_DIR", ""), "write automatic backups to this directory (serve only)")
 	fs.IntVar(&cfg.backupKeep, "backup-keep", 7, "number of automatic backups to keep")
 	fs.DurationVar(&cfg.backupEvery, "backup-every", 24*time.Hour, "time between automatic backups")
+	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
 	fs.Usage = func() { fmt.Fprint(flagOutput, usage); fs.PrintDefaults() }
 	return fs
 }
@@ -141,8 +143,8 @@ func applyConfigFile(fs *flag.FlagSet, path string, explicit map[string]bool) er
 		switch {
 		case fl == nil:
 			return fmt.Errorf("%s:%d: unknown setting %q", path, e.line, e.key)
-		case e.key == "config":
-			return fmt.Errorf("%s:%d: \"config\" cannot be set inside a configuration file", path, e.line)
+		case e.key == "config" || e.key == "version":
+			return fmt.Errorf("%s:%d: %q cannot be set inside a configuration file", path, e.line, e.key)
 		case explicit[e.key]:
 			continue // the command line wins
 		}

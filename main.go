@@ -38,6 +38,7 @@ commands:
   backup [file]               write a backup archive (database + key); safe while the server runs
   restore [-force] <file>     restore an archive into -data (stop the server first)
   config                      show the effective settings (after --config, environment and flags)
+  version                     print the version (also: --version)
 
 Run several instances by giving each its own configuration file:
   photothing --config=/etc/photothing/familie.conf serve
@@ -54,6 +55,10 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
+	}
+	if cfg.showVersion || (len(args) > 0 && args[0] == "version") {
+		fmt.Println(versionString())
+		return
 	}
 	if len(args) == 0 {
 		args = []string{"serve"}
@@ -139,7 +144,9 @@ func serve(cfg config, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted})
+	v, c := buildVersion()
+	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted,
+		About: web.About{Version: v, Commit: c, RepoURL: repoURL, Author: author}})
 	if err != nil {
 		return err
 	}
@@ -147,6 +154,7 @@ func serve(cfg config, st *store.Store) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	log.Print(versionString())
 	if cfg.configFile != "" {
 		log.Printf("settings from %s", cfg.configFile)
 	}

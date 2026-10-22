@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/netip"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ type Server struct {
 	store   *store.Store
 	lib     *gallery.Library
 	box     *auth.Box
+	about   aboutView
 	secure  bool                                     // always set the Secure flag on cookies (use behind TLS)
 	trusted []netip.Prefix                           // proxies whose X-Forwarded-* headers are believed
 	pages   map[string]map[string]*template.Template // language -> page -> templates
@@ -69,15 +71,39 @@ func assetVersion() string {
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }
 
+// About is what the About box shows about this build.
+type About struct {
+	Version string // semantic version, without a leading "v"
+	Commit  string
+	RepoURL string // where the source lives; shown as a link when it is an http(s) URL
+	Author  string // shown in the About box when not empty
+}
+
+// aboutView is About prepared for the templates.
+type aboutView struct {
+	About
+	RepoLink bool   // RepoURL can be opened in a browser
+	Go       string // toolchain and platform
+}
+
 // Options configure the server.
 type Options struct {
+	About          About
 	SecureCookies  bool           // mark cookies Secure even when HTTPS is not detected
 	TrustedProxies []netip.Prefix // see ParseTrustedProxies
 }
 
 func New(st *store.Store, lib *gallery.Library, box *auth.Box, opts Options) (*Server, error) {
 	ver := assetVersion()
+	if opts.About.Version == "" {
+		opts.About.Version = "0.0.0-dev"
+	}
+	if len(opts.About.Commit) > 12 && !strings.HasSuffix(opts.About.Commit, "-dirty") {
+		opts.About.Commit = opts.About.Commit[:12]
+	}
 	s := &Server{store: st, lib: lib, box: box, secure: opts.SecureCookies, trusted: opts.TrustedProxies,
+		about: aboutView{About: opts.About, Go: runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH,
+			RepoLink: strings.HasPrefix(opts.About.RepoURL, "https://") || strings.HasPrefix(opts.About.RepoURL, "http://")},
 		pages:   map[string]map[string]*template.Template{},
 		ipThr:   auth.NewThrottle(30, 15*time.Minute),
 		pairThr: auth.NewThrottle(5, 15*time.Minute),
@@ -299,13 +325,14 @@ type page struct {
 	Data   any
 	Lang   string
 	Langs  []string
+	About  aboutView
 	Path   string // current request URI, for the language switch
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, p page) {
 	p.User = s.current(r)
 	p.Public = s.publicMode()
-	p.Lang, p.Langs, p.Path = s.state(r).Lang, langs, r.URL.RequestURI()
+	p.Lang, p.Langs, p.Path, p.About = s.state(r).Lang, langs, r.URL.RequestURI(), s.about
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := s.pages[p.Lang][name].ExecuteTemplate(w, "base", p); err != nil {
