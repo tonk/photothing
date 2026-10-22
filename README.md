@@ -115,6 +115,21 @@ update reads every file again, once, so existing photos get the new fields (that
 "updated"); after that, unchanged files are skipped again. HEIC and RAW files get the same fields via
 `exiftool`.
 
+### Photos that come out sideways after a HEIC-to-JPEG conversion
+
+A HEIC file from an iPhone stores the pixels as the sensor delivers them (landscape) and a separate rotation
+box. Some converters on Linux turn the pixels but also copy the old EXIF Orientation tag, so the file says
+"turn me" although it already is upright: every program that obeys the tag then shows it sideways. PhotoThing
+recognises this (see above), but a browser opening the original, or any other viewer, will not. To repair
+existing files, only the ones that match the pattern (this changes the metadata, not the pixels):
+
+    exiftool -n -if '$Orientation >= 5 and $ImageWidth < $ImageHeight and $ExifImageWidth == $ImageHeight and $ExifImageHeight == $ImageWidth' -Orientation=1 DIRECTORY
+
+`exiftool` keeps a copy of each changed file as `NAME.jpg_original`; add `-overwrite_original` to skip that.
+To avoid it in future, convert with `heif-convert` from a current libheif (1.23 sets the tag right), and check
+one result: `exiftool -n -Orientation -ImageWidth -ImageHeight photo.jpg` is wrong when the orientation is 5-8
+and the width is smaller than the height.
+
 ## Accounts and security
 
 - Passwords: at least 12 characters, bcrypt. MFA seeds are encrypted with `data/secret.key`.
