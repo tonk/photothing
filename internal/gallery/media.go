@@ -174,7 +174,9 @@ func (l *Library) exiftoolMeta(ctx context.Context, abs string) exifMeta {
 		return m
 	}
 	b, err := run(ctx, 30*time.Second, l.Tools.Exiftool, "-json", "-n", "-DateTimeOriginal", "-Make", "-Model", "-LensModel",
-		"-ExposureTime", "-FNumber", "-FocalLength", "-ISO", "-GPSLatitude", "-GPSLongitude", abs)
+		"-ExposureTime", "-FNumber", "-FocalLength", "-FocalLengthIn35mmFormat", "-ISO", "-GPSLatitude", "-GPSLongitude",
+		"-GPSAltitude", "-GPSImgDirection", "-Flash", "-WhiteBalance", "-MeteringMode", "-ExposureProgram", "-ExposureMode",
+		"-SceneCaptureType", "-ColorSpace", "-ExposureCompensation", "-Software", "-Artist", "-Copyright", "-ImageDescription", abs)
 	if err != nil {
 		return m
 	}
@@ -185,15 +187,13 @@ func (l *Library) exiftoolMeta(ctx context.Context, abs string) exifMeta {
 	r := arr[0]
 	str := func(k string) string { s, _ := r[k].(string); return strings.TrimSpace(s) }
 	num := func(k string) (float64, bool) { f, ok := r[k].(float64); return f, ok }
-	if s := str("Make"); s != "" {
-		m.Display["Camera make"] = s
-	}
-	if s := str("Model"); s != "" {
-		m.Display["Camera model"] = s
-	}
-	if s := str("LensModel"); s != "" {
-		m.Display["Lens"] = s
-	}
+	m.put(LabelMake, cleanString(str("Make"), 100))
+	m.put(LabelModel, cleanString(str("Model"), 100))
+	m.put(LabelLens, cleanString(str("LensModel"), 100))
+	m.put(LabelSoftware, cleanString(str("Software"), 100))
+	m.put(LabelArtist, cleanString(str("Artist"), 100))
+	m.put(LabelCopyright, cleanString(str("Copyright"), 200))
+	m.put(LabelDescription, cleanString(str("ImageDescription"), 200))
 	if s := str("DateTimeOriginal"); len(s) >= 19 {
 		if t, err := time.ParseInLocation("2006:01:02 15:04:05", s[:19], time.Local); err == nil {
 			m.Taken = t
@@ -201,19 +201,44 @@ func (l *Library) exiftoolMeta(ctx context.Context, abs string) exifMeta {
 	}
 	if f, ok := num("ExposureTime"); ok && f > 0 {
 		if f < 1 {
-			m.Display["Exposure"] = fmt.Sprintf("1/%.0f s", 1/f)
+			m.Display[LabelExposure] = fmt.Sprintf("1/%.0f s", 1/f)
 		} else {
-			m.Display["Exposure"] = fmt.Sprintf("%.1f s", f)
+			m.Display[LabelExposure] = fmt.Sprintf("%.1f s", f)
 		}
 	}
 	if f, ok := num("FNumber"); ok {
-		m.Display["Aperture"] = fmt.Sprintf("f/%.1f", f)
+		m.Display[LabelAperture] = fmt.Sprintf("f/%.1f", f)
 	}
 	if f, ok := num("FocalLength"); ok {
-		m.Display["Focal length"] = fmt.Sprintf("%.0f mm", f)
+		m.Display[LabelFocalLength] = fmt.Sprintf("%.0f mm", f)
 	}
 	if f, ok := num("ISO"); ok {
-		m.Display["ISO"] = strconv.Itoa(int(f))
+		m.Display[LabelISO] = strconv.Itoa(int(f))
+	}
+	if f, ok := num("FocalLengthIn35mmFormat"); ok && f > 0 {
+		m.Display[LabelFocal35] = fmt.Sprintf("%.0f mm", f)
+	}
+	if f, ok := num("ExposureCompensation"); ok {
+		m.Display[LabelExposureComp] = evText(f)
+	}
+	if f, ok := num("Flash"); ok {
+		m.Display[LabelFlash] = flashText(int(f))
+	}
+	for _, e := range []struct {
+		key, label string
+		table      map[int]string
+	}{{"WhiteBalance", LabelWhiteBalance, whiteBalances}, {"MeteringMode", LabelMetering, meteringModes},
+		{"ExposureProgram", LabelProgram, programs}, {"ExposureMode", LabelExposureMode, exposureModes},
+		{"SceneCaptureType", LabelScene, sceneTypes}, {"ColorSpace", LabelColorSpace, colorSpaces}} {
+		if f, ok := num(e.key); ok {
+			m.enum(e.label, e.table, int(f))
+		}
+	}
+	if f, ok := num("GPSAltitude"); ok {
+		m.Display[LabelGPSAltitude] = metersText(f)
+	}
+	if f, ok := num("GPSImgDirection"); ok {
+		m.Display[LabelGPSDirection] = fmt.Sprintf("%.0f°", f)
 	}
 	lat, ok1 := num("GPSLatitude")
 	lon, ok2 := num("GPSLongitude")

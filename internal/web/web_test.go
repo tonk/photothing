@@ -732,3 +732,62 @@ func TestSortHelpers(t *testing.T) {
 		t.Errorf("empty pager %+v", empty)
 	}
 }
+
+// Photo information is listed in a fixed order, translated, and the location fields are only for people
+// who may download originals.
+func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
+	e := newEnv(t)
+	e.addPhoto("i.jpg")
+	e.scan()
+	p, _ := e.st.PhotoByID(e.photoID("i.jpg"))
+	p.Exif = map[string]string{
+		"Software": "Auto", // free text that happens to equal a translated word: must stay as it is
+		"Flash":    "Fired", "White balance": "Auto", "Metering mode": "Center-weighted",
+		"Exposure": "1/250 s", "Camera model": "Shutter 9000", "Camera make": "ACME", "Aperture": "f/2.8",
+		"GPS": "52.37000, 4.89000", "GPS altitude": "12 m", "GPS direction": "270°",
+		"Old field": "kept at the end", // stored by another version: listed last
+	}
+	e.st.UpsertPhoto(p)
+	page := fmt.Sprintf("/p/%d", p.ID)
+
+	labels := func(html string) []string {
+		var out []string
+		for _, m := range regexp.MustCompile(`<dt>([^<]*)</dt>`).FindAllStringSubmatch(html, -1) {
+			out = append(out, m[1])
+		}
+		return out
+	}
+	ed := e.login("ed")
+	got := labels(ed.mustGet(page))
+	want := []string{"File size", "Camera make", "Camera model", "Aperture", "Exposure", "Metering mode", "Flash", "White balance",
+		"Software", "GPS", "GPS altitude", "GPS direction", "Old field"}
+	if !strings.Contains(strings.Join(got, "|"), strings.Join(want[1:], "|")) {
+		t.Errorf("order is\n  %v\nwant it to contain\n  %v", got, want[1:])
+	}
+
+	// Dutch: labels and coded values are translated, free text is not
+	ed.post("/prefs", url.Values{"lang": {"nl"}, "next": {"/"}})
+	nlPage := ed.mustGet(page)
+	for _, s := range []string{"<dt>Cameramerk</dt>", "<dt>Flits</dt><dd>Geflitst</dd>", "<dt>Witbalans</dt><dd>Automatisch</dd>",
+		"<dt>Lichtmeting</dt><dd>Centrumgericht</dd>", "<dt>Software</dt><dd>Auto</dd>", "<dt>GPS-hoogte</dt><dd>12 m</dd>"} {
+		if !strings.Contains(nlPage, s) {
+			t.Errorf("Dutch page lacks %s", s)
+		}
+	}
+	if !strings.Contains(nlPage, "https://www.openstreetmap.org/?mlat=52.37000") {
+		t.Error("editor lost the map link")
+	}
+
+	// viewers see the camera data but nothing about the location
+	vera := e.login("vera").mustGet(page)
+	for _, s := range []string{"Camera make", "Flash", "Software"} {
+		if !strings.Contains(vera, "<dt>"+s+"</dt>") {
+			t.Errorf("viewer lacks %s", s)
+		}
+	}
+	for _, s := range []string{"GPS", "12 m", "270°", "52.37", "openstreetmap"} {
+		if strings.Contains(vera, s) {
+			t.Errorf("viewer can see %q", s)
+		}
+	}
+}

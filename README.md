@@ -49,12 +49,14 @@ and a flag given on the command line always wins over the file. See `config.exam
 An instance is a configuration file with its own `data` directory, `photos` and `addr`; they share
 nothing, so one machine can serve any number of galleries, each with its own users. Starting a second
 server on the same data directory is refused (and so is `restore` while a server is using it).
+For a single instance use `contrib/photothing.service` (reads `/etc/photothing/photothing.conf`); for several,
 `contrib/photothing@.service` is a hardened systemd template: `systemctl enable --now photothing@familie`
 starts the instance configured in `/etc/photothing/familie.conf`.
 
 ## Behind a reverse proxy (nginx)
 
-Run photothing on a loopback port and let nginx handle TLS (`contrib/nginx.conf.example`). Every request
+Run photothing on a loopback port and let nginx handle TLS (`contrib/nginx.conf.example`: a server block
+for `/etc/nginx/conf.d/`, plus a redirect from http to https). Every request
 then arrives from nginx, so photothing needs to be told which headers to believe:
 
     trusted-proxy = 127.0.0.1
@@ -90,6 +92,23 @@ only to users who may download originals, since the originals carry them.
 **Album access**: an admin can restrict an album (Admin → Album access). It, and everything below it,
 is then visible to admins and the selected users only: not in listings, counts, covers, search or tags,
 and never to anonymous visitors.
+
+## Photo information
+
+The photo page shows, in this order: camera make and model, lens, focal length (also as 35 mm
+equivalent), aperture, exposure time, ISO, exposure compensation, exposure program and mode, metering
+mode, flash, white balance, scene type, colour space, software, artist, copyright, description, and GPS
+position, altitude and direction; for video the duration and codec. Only fields that are present in the
+file are shown, in the user's language; names and descriptions are shown as written.
+
+Location (GPS) fields are shown only to users who may download originals, since the originals carry
+them. Not read: IPTC and XMP data (titles, keywords, ratings from Lightroom and the like), maker notes,
+and serial numbers.
+
+The details are read when a file is scanned. When a new version reads more, the first scan after the
+update reads every file again, once, so existing photos get the new fields (that scan reports them as
+"updated"); after that, unchanged files are skipped again. HEIC and RAW files get the same fields via
+`exiftool`.
 
 ## Accounts and security
 

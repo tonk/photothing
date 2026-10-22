@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,13 @@ import (
 
 	"photothing/internal/store"
 )
+
+// metaVersion numbers what is read from a file into the database (dimensions, EXIF fields, ...). When
+// a release reads more, it raises this number and the next scan reads every file again, once, so
+// existing photos get the new details without anybody touching their files.
+const metaVersion = 2
+
+const metaVersionKey = "meta_version"
 
 const (
 	maxPixels = 100_000_000 // refuse decompression bombs
@@ -95,6 +103,7 @@ func (l *Library) Scan(ctx context.Context) (ScanResult, error) {
 	defer l.scanMu.Unlock()
 
 	res := ScanResult{MissingTools: map[string]int{}}
+	reread := l.store.Setting(metaVersionKey) != strconv.Itoa(metaVersion)
 	index, err := l.store.PhotoIndex()
 	if err != nil {
 		return res, err
@@ -135,7 +144,7 @@ func (l *Library) Scan(ctx context.Context) (ScanResult, error) {
 		}
 		seen[rel] = true
 		old, known := index[rel]
-		if known && old.MTime == info.ModTime().Unix() && old.Size == info.Size() {
+		if known && !reread && old.MTime == info.ModTime().Unix() && old.Size == info.Size() {
 			return nil
 		}
 		todo = append(todo, pending{rel, info, known})
@@ -207,6 +216,11 @@ func (l *Library) Scan(ctx context.Context) (ScanResult, error) {
 			res.Removed++
 		}
 	}
+	if reread { // only after a complete pass, so an interrupted scan starts over
+		if err := l.store.SetSetting(metaVersionKey, strconv.Itoa(metaVersion)); err != nil {
+			return res, err
+		}
+	}
 	return res, nil
 }
 
@@ -245,9 +259,9 @@ func (l *Library) readPhoto(ctx context.Context, rel string, info fs.FileInfo) (
 			return nil, err
 		}
 		ph.Width, ph.Height = vi.W, vi.H
-		meta = exifMeta{Display: map[string]string{"Duration": formatDuration(vi.Duration)}, Taken: vi.Created}
+		meta = exifMeta{Display: map[string]string{LabelDuration: formatDuration(vi.Duration)}, Taken: vi.Created}
 		if vi.Codec != "" {
-			meta.Display["Codec"] = vi.Codec
+			meta.Display[LabelCodec] = vi.Codec
 		}
 	default: // HEIC and RAW: dimensions of the rendered JPEG, metadata from exiftool
 		jpg, cleanup, err := l.toJPEG(ctx, l.abs(rel), ft)

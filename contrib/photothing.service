@@ -1,0 +1,43 @@
+# systemd unit for ONE photothing instance. (For several instances use photothing@.service instead.)
+#   install -m 0755 photothing /usr/local/bin/
+#   useradd --system --no-create-home --shell /usr/sbin/nologin photothing
+#   install -d /etc/photothing && cp config.example /etc/photothing/photothing.conf
+#     ...and set in that file:  data = /var/lib/photothing   and   photos = <your photo directory>
+#   cp contrib/photothing.service /etc/systemd/system/ && systemctl daemon-reload
+#   systemctl enable --now photothing
+#   photothing --config=/etc/photothing/photothing.conf user add ton admin
+# Logs:  journalctl -u photothing -f
+[Unit]
+Description=photothing photo gallery
+After=network.target
+ConditionPathExists=/etc/photothing/photothing.conf
+
+[Service]
+Type=simple
+User=photothing
+Group=photothing
+ExecStart=/usr/local/bin/photothing --config=/etc/photothing/photothing.conf serve
+Restart=on-failure
+RestartSec=2
+
+# The only place the service may write is its state directory (/var/lib/photothing); the photos stay
+# read-only. Put automatic backups inside it too (backup-dir = /var/lib/photothing/backups).
+StateDirectory=photothing
+StateDirectoryMode=0700
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

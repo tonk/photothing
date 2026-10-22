@@ -1,3 +1,6 @@
+# Put this file in /etc/nginx/conf.d/ (or sites-available/ and link it into sites-enabled/), adjust
+# server_name, the certificate paths and the upstream port, then:  nginx -t && systemctl reload nginx
+#
 # nginx in front of one photothing instance (see config.example: trusted-proxy = 127.0.0.1).
 # For a second instance, copy this file with another server_name and the other port.
 

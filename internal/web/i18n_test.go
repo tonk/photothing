@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"photothing/internal/gallery"
 )
 
 // sourceKeys collects every English text that can reach tr(): template {{t "..."}} calls, T(r, "...")
@@ -44,9 +46,17 @@ func sourceKeys(t *testing.T) map[string]string {
 	// Chosen at run time: roles, user states, theme names, HTTP status titles, photo information labels.
 	for _, k := range []string{"viewer", "editor", "admin", "active", "disabled", "on", "off", "you", "system", "light", "dark",
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Too Many Requests", "Internal Server Error",
-		"Camera make", "Camera model", "Lens", "Exposure", "Aperture", "Focal length", "ISO", "GPS", "Duration", "Codec",
 		"Gallery now requires sign-in.", "Gallery is now publicly viewable (originals still require sign-in)."} {
 		keys[k] = "dynamic"
+	}
+	// Photo information: the labels and the texts of the coded values come from the gallery package.
+	for _, k := range gallery.ExifOrder {
+		keys[k] = "gallery.ExifOrder"
+	}
+	for _, texts := range gallery.ExifValueTexts() {
+		for _, k := range texts {
+			keys[k] = "gallery.ExifValueTexts"
+		}
 	}
 	return keys
 }

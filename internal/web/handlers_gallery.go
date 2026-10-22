@@ -129,12 +129,57 @@ type photoData struct {
 	Index     int // 1-based position within the album
 	Total     int
 	UpURL     string
-	Info      map[string]string
+	Info      []infoRow
 	Tags      []string
 	TagsText  string
 	CanOrig   bool
 	CanEdit   bool
 	CoverOpts []coverOpt
+}
+
+// infoRow is one line of photo information, ready to show: label and value in the user's language.
+type infoRow struct{ Label, Value, Link string }
+
+// infoRows orders and translates the stored photo information. Fields that reveal the location are
+// left out for users who may not download originals. Fields this version does not know (stored by an
+// older or newer version) are listed last, by name.
+func (s *Server) infoRows(r *http.Request, p *store.Photo, mayDownload bool) []infoRow {
+	valueTexts := gallery.ExifValueTexts()
+	row := func(key string) (infoRow, bool) {
+		v, ok := p.Exif[key]
+		if !ok || (gallery.ExifSensitive[key] && !mayDownload) {
+			return infoRow{}, false
+		}
+		out := infoRow{Label: s.T(r, key), Value: v}
+		if _, translated := valueTexts[key]; translated {
+			out.Value = s.T(r, v)
+		}
+		if key == gallery.LabelGPS {
+			out.Link = osmURL(v)
+		}
+		return out, true
+	}
+	known := map[string]bool{}
+	var rows []infoRow
+	for _, key := range gallery.ExifOrder {
+		known[key] = true
+		if ir, ok := row(key); ok {
+			rows = append(rows, ir)
+		}
+	}
+	var extra []string
+	for key := range p.Exif {
+		if !known[key] {
+			extra = append(extra, key)
+		}
+	}
+	sort.Strings(extra)
+	for _, key := range extra {
+		if ir, ok := row(key); ok {
+			rows = append(rows, ir)
+		}
+	}
+	return rows
 }
 
 // loadPhoto fetches the photo of the request and enforces album access.
@@ -202,13 +247,7 @@ func (s *Server) renderPhoto(w http.ResponseWriter, r *http.Request, p *store.Ph
 	d.CanOrig = u != nil && auth.Can(u.Role, auth.PermOriginal)
 	d.CanEdit = u != nil && auth.Can(u.Role, auth.PermEdit)
 
-	d.Info = map[string]string{}
-	for k, v := range p.Exif {
-		if k == "GPS" && !d.CanOrig {
-			continue // location is as sensitive as the original file, which carries it
-		}
-		d.Info[k] = v
-	}
+	d.Info = s.infoRows(r, p, d.CanOrig)
 	if d.Tags, err = s.store.PhotoTags(p.ID); err != nil {
 		s.serverError(w, r, err)
 		return

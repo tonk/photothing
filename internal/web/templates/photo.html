@@ -24,7 +24,7 @@
       <dt>{{t "Taken"}}</dt><dd>{{stamp $p.TakenAt}}</dd>
       <dt>{{t "Dimensions"}}</dt><dd>{{$p.Width}} × {{$p.Height}}</dd>
       <dt>{{t "File size"}}</dt><dd>{{humanSize $p.Size}}</dd>
-      {{range $k, $v := .Info}}<dt>{{t $k}}</dt><dd>{{if eq $k "GPS"}}{{with osm $v}}<a href="{{.}}" target="_blank" rel="noopener noreferrer">{{$v}}</a>{{else}}{{$v}}{{end}}{{else}}{{$v}}{{end}}</dd>{{end}}
+      {{range .Info}}<dt>{{.Label}}</dt><dd>{{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer">{{.Value}}</a>{{else}}{{.Value}}{{end}}</dd>{{end}}
     </dl>
     {{if .CanOrig}}<p><a class="button" href="/img/{{$p.ID}}/original">{{if $p.IsVideo}}{{t "Download video"}}{{else}}{{t "Open original"}}{{end}}</a></p>{{end}}
     {{if .CanEdit}}

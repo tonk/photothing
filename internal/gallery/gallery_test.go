@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -284,5 +285,96 @@ func TestHEIC(t *testing.T) {
 	}
 	if img, err := imaging.Open(out); err != nil || img.Bounds().Dx() != 200 {
 		t.Errorf("variant: %v %v", img.Bounds(), err)
+	}
+}
+
+func (e *env) writeBytes(rel string, b []byte, mtime time.Time) string {
+	e.t.Helper()
+	p := filepath.Join(e.root, filepath.FromSlash(rel))
+	os.MkdirAll(filepath.Dir(p), 0o755)
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		e.t.Fatal(err)
+	}
+	os.Chtimes(p, mtime, mtime)
+	return p
+}
+
+// After an upgrade that reads more from the files, the next scan reads every file again, once, even
+// though no file changed.
+func TestMetadataIsReadAgainOnceAfterAnUpgrade(t *testing.T) {
+	e := newEnv(t)
+	mt := time.Now().Add(-time.Hour).Truncate(time.Second)
+	e.writeBytes("a.jpg", decodableJPEGWithExif(t, 40, 30, false), mt)
+	if r := e.scan(); r.Added != 1 {
+		t.Fatal(r)
+	}
+	if got := e.photo("a.jpg").Exif[LabelFlash]; got != "Fired" {
+		t.Fatalf("flash = %q", got)
+	}
+	if r := e.scan(); r.Updated != 0 {
+		t.Errorf("an unchanged library was read again: %s", r)
+	}
+
+	// Pretend the database was filled by a version that knew fewer fields.
+	p := e.photo("a.jpg")
+	p.Exif = map[string]string{LabelMake: "ACME"}
+	if err := e.store.UpsertPhoto(p); err != nil {
+		t.Fatal(err)
+	}
+	e.store.SetSetting(metaVersionKey, "1")
+
+	if r := e.scan(); r.Updated != 1 {
+		t.Fatalf("upgrade scan should read the file again: %s", r)
+	}
+	got := e.photo("a.jpg").Exif
+	if got[LabelFlash] != "Fired" || got[LabelGPSAltitude] != "12 m" || got[LabelFocal35] != "52 mm" {
+		t.Errorf("new fields were not filled in: %v", got)
+	}
+	if v := e.store.Setting(metaVersionKey); v != "2" {
+		t.Errorf("version recorded as %q", v)
+	}
+	if r := e.scan(); r.Updated != 0 {
+		t.Errorf("read again a second time: %s", r)
+	}
+	// the read-again pass must not break rename detection or removals
+	os.Rename(filepath.Join(e.root, "a.jpg"), filepath.Join(e.root, "b.jpg"))
+	if r := e.scan(); r.Moved != 1 || r.Removed != 0 || r.Added != 0 {
+		t.Errorf("rename after upgrade: %s", r)
+	}
+}
+
+// HEIC and RAW metadata comes from exiftool, which names and codes things differently from the JPEG
+// reader; the result must look the same.
+func TestExiftoolMetadata(t *testing.T) {
+	need(t, "exiftool")
+	need(t, "heif-enc")
+	need(t, "heif-convert")
+	e := newEnv(t)
+	src := e.writeBytes("src.jpg", decodableJPEGWithExif(t, 64, 48, false), time.Now())
+	if out, err := exec.Command("heif-enc", src, "-o", filepath.Join(e.root, "shot.heic")).CombinedOutput(); err != nil {
+		t.Skipf("cannot create heic: %v %s", err, out)
+	}
+	os.Remove(src)
+	if r := e.scan(); r.Added != 1 {
+		t.Fatal(r)
+	}
+	got := e.photo("shot.heic").Exif
+	if got[LabelMake] != "ACME" {
+		t.Skipf("heif-enc did not carry the EXIF block over: %v", got)
+	}
+	want := map[string]string{
+		LabelModel: "Shutter 9000", LabelExposure: "1/250 s", LabelAperture: "f/2.8", LabelFocalLength: "35 mm", LabelFocal35: "52 mm",
+		LabelISO: "200", LabelExposureComp: "-0.7 EV", LabelProgram: "Aperture priority", LabelExposureMode: "Auto",
+		LabelMetering: "Pattern", LabelFlash: "Fired", LabelWhiteBalance: "Manual", LabelScene: "Night", LabelColorSpace: "sRGB",
+		LabelSoftware: "PhotoEdit 4.2", LabelArtist: "Ton Kersten", LabelDescription: "Harbour at dusk",
+		LabelGPS: "52.50000, -4.90000", LabelGPSAltitude: "12 m", LabelGPSDirection: "270°",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+	if !strings.Contains(got[LabelCopyright], "Ton Kersten") {
+		t.Errorf("copyright = %q", got[LabelCopyright])
 	}
 }
