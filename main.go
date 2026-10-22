@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 // photothing is a small, self-hosted photo gallery with accounts, MFA and RBAC.
 package main
 
@@ -58,6 +61,7 @@ func main() {
 	}
 	if cfg.showVersion || (len(args) > 0 && args[0] == "version") {
 		fmt.Println(versionString())
+		fmt.Println(licenseNotice)
 		return
 	}
 	if len(args) == 0 {
@@ -146,7 +150,7 @@ func serve(cfg config, st *store.Store) error {
 	}
 	v, c := buildVersion()
 	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted,
-		About: web.About{Version: v, Commit: c, RepoURL: repoURL, Author: author}})
+		About: web.About{Version: v, Commit: c, RepoURL: repoURL, Author: author, License: license, LicenseURL: licenseURL}})
 	if err != nil {
 		return err
 	}

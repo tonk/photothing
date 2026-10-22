@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Ton Kersten
 # Usage: scripts/release-notes.sh X.Y.Z
 # Prints the CHANGELOG.md section of one version (without its heading): the release notes.
 set -euo pipefail

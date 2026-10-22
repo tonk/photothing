@@ -1,0 +1,22 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: photothing
+Upstream-Contact: Ton Kersten
+
+Files: *
+Copyright: 2026 Ton Kersten
+License: GPL-3.0-only
+
+License: GPL-3.0-only
+ This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+ General Public License version 3 as published by the Free Software Foundation.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+ Public License for more details.
+ .
+ On Debian systems the full text of the license can be found in /usr/share/common-licenses/GPL-3, and
+ in /usr/share/doc/photothing/LICENSE.
+
+Comment: The program contains Go modules by other authors (MIT, BSD-style, Apache-2.0 and public-domain
+ licenses, all compatible with the GPL version 3). Their copyright notices and license texts are in
+ /usr/share/doc/photothing/third-party-licenses/.

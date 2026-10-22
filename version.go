@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 package main
 
 import (
@@ -22,6 +25,14 @@ var (
 // repoURL is where the source lives; the About box shows it. Release builds set it to the repository the
 // release is built from (see the workflow), so it follows the project when it moves.
 var repoURL = "ssh://git@git.smartowl.nl:2990/Development/photothing.git"
+
+// The license of the program, shown in the About box and by --version.
+const (
+	license    = "GPL-3.0-only"
+	licenseURL = "https://www.gnu.org/licenses/gpl-3.0.html"
+	// licenseNotice is printed by --version, as the GPL asks of programs that talk to a terminal.
+	licenseNotice = "Copyright (C) 2026 Ton Kersten. Licensed under the GNU General Public License version 3.\nThis program comes with ABSOLUTELY NO WARRANTY; see the file LICENSE."
+)
 
 // author is shown in the About box. Builds can replace it: -X main.author="Name".
 var author = "Ton Kersten"

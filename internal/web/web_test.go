@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 package web
 
 import (
@@ -794,7 +797,8 @@ func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
 
 // The status line at the bottom shows the version, and the About box shows where the source lives.
 func TestStatusLineAndAboutBox(t *testing.T) {
-	e := newEnvWith(t, Options{About: About{Version: "1.2.3", Commit: "0123456789abcdef0123", RepoURL: "https://github.com/example/photothing", Author: "Ton Kersten"}})
+	e := newEnvWith(t, Options{About: About{Version: "1.2.3", Commit: "0123456789abcdef0123", RepoURL: "https://github.com/example/photothing", Author: "Ton Kersten",
+		License: "GPL-3.0-only", LicenseURL: "https://www.gnu.org/licenses/gpl-3.0.html"}})
 	for _, path := range []string{"/login", "/"} { // every page, signed in or not
 		c := e.client()
 		if path == "/" {
@@ -806,6 +810,7 @@ func TestStatusLineAndAboutBox(t *testing.T) {
 			`<dd>1.2.3 <small class="muted">(0123456789ab)</small></dd>`, // the commit is shortened
 			`<a href="https://github.com/example/photothing" target="_blank" rel="noopener noreferrer">https://github.com/example/photothing</a>`,
 			`<dt>Author</dt><dd>Ton Kersten</dd>`,
+			`<dt>License</dt><dd><a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener noreferrer">GPL-3.0-only</a></dd>`,
 			`/static/about.js?v=`,
 		} {
 			if !strings.Contains(body, want) {
@@ -822,7 +827,7 @@ func TestStatusLineAndAboutBox(t *testing.T) {
 	c := e.login("vera")
 	c.post("/prefs", url.Values{"lang": {"nl"}, "next": {"/"}})
 	nl := c.mustGet("/")
-	for _, want := range []string{">Over</button>", "<dt>Versie</dt>", "<dt>Broncode</dt>", "<dt>Auteur</dt><dd>Ton Kersten</dd>", "<dt>Gebouwd met</dt>", "Sluiten", "Een zelf te hosten fotogalerij."} {
+	for _, want := range []string{">Over</button>", "<dt>Versie</dt>", "<dt>Broncode</dt>", "<dt>Auteur</dt><dd>Ton Kersten</dd>", "<dt>Licentie</dt>", "<dt>Gebouwd met</dt>", "Sluiten", "Een zelf te hosten fotogalerij."} {
 		if !strings.Contains(nl, want) {
 			t.Errorf("Dutch page lacks %s", want)
 		}

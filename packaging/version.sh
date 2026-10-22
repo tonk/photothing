@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Ton Kersten
 # Prints the version to build, a semantic version without the leading "v":
 #   on a tag v1.2.3            ->  1.2.3
 #   3 commits after that tag   ->  1.2.3-3-g0a1b2c3        (a pre-release of the next version)

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 // Package store wraps the SQLite database.
 package store
 

@@ -9,6 +9,7 @@ release: "1"
 section: web
 priority: optional
 maintainer: ${MAINTAINER}
+license: GPL-3.0-only
 description: |
   Self-hosted photo gallery with accounts, MFA and roles
   PhotoThing serves the directories under your photo directory as albums. It has users with optional
@@ -40,6 +41,19 @@ contents:
     dst: /usr/share/doc/photothing/config.example
   - src: contrib/nginx.conf.example
     dst: /usr/share/doc/photothing/nginx.conf.example
+  # rpm marks the license file (%license); deb has no such type and would leave the file out.
+  - src: LICENSE
+    dst: /usr/share/doc/photothing/LICENSE
+    type: license
+    packager: rpm
+  - src: LICENSE
+    dst: /usr/share/doc/photothing/LICENSE
+    packager: deb
+  - src: packaging/copyright
+    dst: /usr/share/doc/photothing/copyright
+  - src: dist/build/licenses
+    dst: /usr/share/doc/photothing/third-party-licenses
+    type: tree
   - src: README.md
     dst: /usr/share/doc/photothing/README.md
   - src: CHANGELOG.md

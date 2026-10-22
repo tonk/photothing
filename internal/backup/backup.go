@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 // Package backup creates and restores archives of the data directory: a consistent snapshot of the
 // SQLite database plus the secret key that decrypts the stored MFA seeds. The image cache is not
 // included (it is rebuilt on demand), and neither are the photos themselves.

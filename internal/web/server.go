@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 // Package web contains the HTTP handlers, templates and static assets.
 package web
 
@@ -73,10 +76,12 @@ func assetVersion() string {
 
 // About is what the About box shows about this build.
 type About struct {
-	Version string // semantic version, without a leading "v"
-	Commit  string
-	RepoURL string // where the source lives; shown as a link when it is an http(s) URL
-	Author  string // shown in the About box when not empty
+	Version    string // semantic version, without a leading "v"
+	Commit     string
+	RepoURL    string // where the source lives; shown as a link when it is an http(s) URL
+	Author     string // shown in the About box when not empty
+	License    string // SPDX identifier of the license, shown when not empty
+	LicenseURL string // where the license text can be read; the license is linked when this is set
 }
 
 // aboutView is About prepared for the templates.

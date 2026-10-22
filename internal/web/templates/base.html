@@ -81,6 +81,7 @@
       <dt>{{t "Version"}}</dt><dd>{{.About.Version}}{{if .About.Commit}} <small class="muted">({{.About.Commit}})</small>{{end}}</dd>
       {{if .About.RepoURL}}<dt>{{t "Source code"}}</dt><dd>{{if .About.RepoLink}}<a href="{{.About.RepoURL}}" target="_blank" rel="noopener noreferrer">{{.About.RepoURL}}</a>{{else}}<code>{{.About.RepoURL}}</code>{{end}}</dd>{{end}}
       {{if .About.Author}}<dt>{{t "Author"}}</dt><dd>{{.About.Author}}</dd>{{end}}
+      {{if .About.License}}<dt>{{t "License"}}</dt><dd>{{if .About.LicenseURL}}<a href="{{.About.LicenseURL}}" target="_blank" rel="noopener noreferrer">{{.About.License}}</a>{{else}}{{.About.License}}{{end}}</dd>{{end}}
       <dt>{{t "Built with"}}</dt><dd>{{.About.Go}}</dd>
     </dl>
     <button class="button">{{t "Close"}}</button>

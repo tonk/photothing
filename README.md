@@ -148,6 +148,18 @@ scan result.
 Browsers play mp4/h264 and webm; other video codecs are listed but may not play in the browser.
 HEIC and RAW files are shown as a converted JPEG; the original is downloaded as is.
 
+## License
+
+PhotoThing is free software, licensed under the **GNU General Public License, version 3** (SPDX:
+`GPL-3.0-only`); see `LICENSE`. Copyright (C) 2026 Ton Kersten. Every source file carries an SPDX header, and
+`photothing --version` and the About box name the license.
+
+The program contains Go modules by other authors under MIT, BSD-style, Apache-2.0 and public-domain licenses,
+which are compatible with the GPL version 3. Their notices are collected from the modules actually linked
+into the binary (`scripts/third-party-licenses.sh`) and shipped in every tarball and package, in
+`third-party-licenses/` (packages: `/usr/share/doc/photothing/third-party-licenses/`). The release build fails
+when a dependency has no license file, and a test fails when one looks incompatible.
+
 ## Versions, releases and packages
 
 Versions are [semantic versions](https://semver.org): `photothing --version` prints the one in use, and
@@ -197,7 +209,7 @@ the source address.
     main.go, config.go      CLI, settings and configuration file, server start-up, housekeeping
     contrib/                systemd units, nginx configuration (config.example is in the root)
     packaging/              build.sh, version.sh, nfpm.yaml and the install scripts of the .deb and .rpm
-    scripts/                what the release workflow runs: tag check, release notes
+    scripts/                what the release workflow runs: tag check, release notes, third-party licenses
     .github/workflows/      the release workflow
     internal/store          SQLite schema, upgrades and queries
     internal/auth           passwords, RBAC, TOTP, recovery codes, secret box, throttle

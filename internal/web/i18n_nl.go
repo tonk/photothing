@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 package web
 
 // nl maps the English interface texts to Dutch.
@@ -110,6 +113,7 @@ var nl = map[string]string{
 	"Version":                      "Versie",
 	"Source code":                  "Broncode",
 	"Author":                       "Auteur",
+	"License":                      "Licentie",
 	"Built with":                   "Gebouwd met",
 	"Close":                        "Sluiten",
 

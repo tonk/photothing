@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Ton Kersten
 # Usage: scripts/check-release.sh vX.Y.Z[-prerelease]
 # Checks that a release tag is a semantic version (https://semver.org) and that CHANGELOG.md has a
 # section for it. Prints the version without the leading "v". Used by the release workflow.

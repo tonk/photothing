@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Ton Kersten
 # Builds photothing for Linux and packages it: a tarball, a .deb and an .rpm in dist/.
 #
 #   packaging/build.sh [amd64|arm64]        (default: the architecture of this machine)
@@ -36,12 +38,16 @@ for unit in photothing.service photothing@.service; do
   sed -n '/^\[Unit\]/,$p' "contrib/$unit" | sed 's#/usr/local/bin/photothing#/usr/bin/photothing#' > "$build/units/$unit"
 done
 
+# The licenses of the Go modules that are linked into the binary travel with it.
+scripts/third-party-licenses.sh "$build/licenses"
+
 # Tarball: the binary plus everything needed to install it by hand.
 name="photothing_${VERSION}_linux_${arch}"
 stage="$build/$name"
 mkdir -p "$stage"
-cp "$build/photothing" README.md CHANGELOG.md config.example "$stage/"
+cp "$build/photothing" README.md CHANGELOG.md LICENSE config.example "$stage/"
 cp -r contrib "$stage/contrib"
+cp -r "$build/licenses" "$stage/third-party-licenses"
 tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$epoch" -C "$build" -cf - "$name" \
   | gzip -n -9 > "$out/$name.tar.gz"
 rm -rf "$stage"

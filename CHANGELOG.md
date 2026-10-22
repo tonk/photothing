@@ -48,4 +48,7 @@ First version.
   amd64 and arm64 binaries, a `.deb`, an `.rpm` and a tarball for each, and publishes them with the notes of
   this changelog and a `SHA256SUMS` file. Packages install systemd units and a default configuration
   in `/etc/photothing`, create a `photothing` user, and keep configuration and data on removal.
+- License: GNU GPL version 3 (`GPL-3.0-only`), with SPDX headers in the source, the license in the About
+  box and `--version`, a license field in the packages, and the licenses of the Go modules that are linked
+  into the binary shipped with every tarball and package.
 - systemd units for one instance and for several (`photothing@NAME`), and an nginx example.

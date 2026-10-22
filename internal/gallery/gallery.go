@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ton Kersten
+
 // Package gallery scans the photo directory and produces resized images.
 package gallery
 
