@@ -2,9 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for a security problem. Tell the maintainer directly (once the project is on
-GitHub: use "Report a vulnerability" under the Security tab), with what you found and how to reproduce it. Only
-the latest release is supported with fixes.
+Please do not open a public issue for a security problem. Use "Report a vulnerability" under the Security tab of
+https://github.com/tonk/photothing (a private report to the maintainer), with what you found and how to
+reproduce it. Only the latest release is supported with fixes.
 
 ## Security model
 

@@ -117,3 +117,14 @@ func TestReleaseScripts(t *testing.T) {
 		t.Errorf("VERSION override gave %q", out)
 	}
 }
+
+// The About box links to the source. Whatever a build does not override must be an address a visitor can open:
+// no internal host, no ssh address.
+func TestDefaultSourceAddress(t *testing.T) {
+	if !regexp.MustCompile(`^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`).MatchString(repoURL) {
+		t.Errorf("default source address %q is not a public GitHub repository address", repoURL)
+	}
+	if strings.Contains(repoURL, ".git") || strings.HasSuffix(repoURL, "/") {
+		t.Errorf("source address %q should be the page of the repository, without .git or a trailing slash", repoURL)
+	}
+}

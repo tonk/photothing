@@ -24,7 +24,7 @@ var (
 
 // repoURL is where the source lives; the About box shows it. Release builds set it to the repository the
 // release is built from (see the workflow), so it follows the project when it moves.
-var repoURL = "ssh://git@git.smartowl.nl:2990/Development/photothing.git"
+var repoURL = "https://github.com/tonk/photothing"
 
 // The license of the program, shown in the About box and by --version.
 const (
