@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"photothing/internal/web"
 )
 
 // config holds the settings of one photothing instance. Every setting is a command-line flag; most can
@@ -169,6 +171,22 @@ func cleanFlagErr(err error) string {
 		return ne.Err.Error()
 	}
 	return err.Error()
+}
+
+// validate checks the settings that can be checked without starting anything.
+func (c config) validate() error {
+	if _, err := web.ParseTrustedProxies(c.trustedProxy); err != nil {
+		return err
+	}
+	if c.backupKeep < 1 {
+		return errors.New("backup-keep must be at least 1 (a lower value would delete every backup)")
+	}
+	for name, d := range map[string]time.Duration{"scan-interval": c.scanEvery, "backup-every": c.backupEvery} {
+		if d < 0 {
+			return fmt.Errorf("%s must not be negative", name)
+		}
+	}
+	return nil
 }
 
 // lines describes the effective settings, one "key = value" per line (used by the "config" command).

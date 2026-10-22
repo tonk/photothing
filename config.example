@@ -1,0 +1,94 @@
+# photothing configuration: every setting, with its default.
+#
+# Use it as:   photothing --config=/etc/photothing/familie.conf serve
+# Check it:    photothing --config=/etc/photothing/familie.conf config
+#
+# FORMAT
+#   One "key = value" per line. The keys are the names of the command-line flags.
+#   Lines that start with # or ; are comments, blank lines are ignored.
+#   A value may be wrapped in "double" or 'single' quotes. A key may appear only once.
+#   Switches take true/false, yes/no, on/off or 1/0.
+#   Durations take s, m and h, and can be combined: 30s, 10m, 24h, 1h30m. 0 means "off" where noted.
+#   A relative path is relative to the directory of THIS FILE, not to where you run the command.
+#
+# PRECEDENCE (weakest first)
+#   built-in default  <  environment variable  <  this file  <  command-line flag
+#   So a flag such as "-addr :9000" on the command line always wins over the line below.
+#
+# SEVERAL INSTANCES
+#   Give every instance its own file, with its own photos, data and addr. Instances share nothing:
+#   each has its own users, database and key. Starting two servers on the same data directory is refused.
+#
+# The "config" setting itself (the path of this file) cannot be set inside the file.
+# Lines below are active examples; where a setting is optional, remove the line (or comment it out) to
+# get the default described in its comment.
+
+
+# ---- Where things are ------------------------------------------------------------------------------
+
+# photos: the directory with your photos. Every sub-directory is an album, nested to any depth.
+# photothing only ever reads it.
+#   default: ./photos          flag: -photos          environment: PHOTOTHING_PHOTOS
+photos = /srv/fotos/familie
+
+# data: where photothing keeps its own files: photothing.db (users, albums, tags), secret.key (decrypts
+# the stored MFA seeds: keep it together with the database), cache/ (resized images, safe to delete)
+# and .lock. Must be writable. Every instance needs its own directory.
+#   default: ./data            flag: -data            environment: PHOTOTHING_DATA
+data = /var/lib/photothing/familie
+
+
+# ---- Network ---------------------------------------------------------------------------------------
+
+# addr: the address and port to listen on. Use 127.0.0.1 when a reverse proxy (nginx) faces the
+# internet, and give every instance its own port. 0.0.0.0:8080 listens on all interfaces.
+#   default: 127.0.0.1:8080    flag: -addr            environment: PHOTOTHING_ADDR
+addr = 127.0.0.1:8081
+
+# trusted-proxy: the reverse proxy (or proxies) in front of photothing, as a comma-separated list of
+# addresses and CIDR ranges, for example "127.0.0.1" or "127.0.0.1, 10.0.0.0/8, ::1".
+# The X-Forwarded-For, X-Real-IP and X-Forwarded-Proto headers are believed ONLY on connections that
+# come from one of these addresses; on any other connection they are ignored. This lets photothing
+# limit failed logins per visitor, show real addresses in the audit log and session list, mark cookies
+# Secure when the visitor used https, and build reset links with the right scheme.
+# Leave it empty when visitors connect directly. Without it, behind a proxy, every visitor looks like
+# the proxy and they all share one login limit.
+#   default: (empty)           flag: -trusted-proxy   environment: PHOTOTHING_TRUSTED_PROXY
+trusted-proxy = 127.0.0.1
+
+# secure-cookies: always mark the session cookie Secure, so browsers only send it over https.
+# Not needed when trusted-proxy is set and the proxy sends X-Forwarded-Proto: https (that is detected
+# per request). Use it when https is terminated somewhere photothing cannot see. Do NOT turn it on
+# for plain http: nobody could stay signed in.
+#   default: false             flag: -secure-cookies  environment: PHOTOTHING_SECURE_COOKIES=1
+secure-cookies = false
+
+
+# ---- Keeping the library up to date ----------------------------------------------------------------
+
+# scan-interval: how often to look for new, changed, renamed and removed photos. A scan only reads file
+# sizes and times, so a short interval is cheap on an unchanged library. Photos are always scanned
+# once at start-up and from the "Rescan photos" button on the Admin page. 0 = no periodic scan.
+#   default: 10m               flag: -scan-interval   environment: PHOTOTHING_SCAN_INTERVAL
+scan-interval = 10m
+
+
+# ---- Automatic backups -----------------------------------------------------------------------------
+# A backup archive holds a consistent copy of the database plus secret.key (not the photos, not the
+# cache). It contains password hashes and the key for the MFA seeds: treat it as a secret, and copy it
+# off this machine as well. Make one by hand with:  photothing --config=FILE backup
+# Restore with:  photothing --config=FILE restore [-force] archive.tar.gz   (stop the server first)
+
+# backup-dir: write automatic backups to this directory (it is created if needed). Leave it out for no
+# automatic backups. Under systemd it must be writable: a directory inside "data" works.
+#   default: (empty)           flag: -backup-dir      environment: PHOTOTHING_BACKUP_DIR
+backup-dir = /var/lib/photothing/familie/backups
+
+# backup-every: the time between automatic backups. A backup is also made at start-up when the newest
+# one is older than this. 0 = only at start-up.
+#   default: 24h               flag: -backup-every
+backup-every = 24h
+
+# backup-keep: how many automatic backups to keep; older ones are deleted. At least 1.
+#   default: 7                 flag: -backup-keep
+backup-keep = 7

@@ -119,6 +119,9 @@ func openLibrary(cfg config, st *store.Store) (*gallery.Library, error) {
 }
 
 func serve(cfg config, st *store.Store) error {
+	if err := cfg.validate(); err != nil {
+		return err
+	}
 	unlock, err := lockDataDir(cfg.data)
 	if err != nil {
 		return err
@@ -240,13 +243,7 @@ func configCmd(cfg config) error {
 	for _, l := range cfg.lines() {
 		fmt.Println(l)
 	}
-	if _, err := web.ParseTrustedProxies(cfg.trustedProxy); err != nil {
-		return err
-	}
-	if cfg.backupKeep < 1 {
-		return errors.New("backup-keep must be at least 1")
-	}
-	return nil
+	return cfg.validate()
 }
 
 func backupCmd(cfg config, st *store.Store, args []string) error {

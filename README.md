@@ -44,7 +44,7 @@ A configuration file is `key = value` lines named like the flags above (`photos`
 `trusted-proxy`, `scan-interval`, `backup-dir`, `backup-keep`, `backup-every`, `secure-cookies`).
 `#` and `;` start a comment line, values may be quoted, `yes/no/on/off` work for switches, and a relative
 path is relative to the directory of the file. Mistakes are reported with the file name and line number,
-and a flag given on the command line always wins over the file. See `contrib/photothing.conf.example`.
+and a flag given on the command line always wins over the file. See `config.example`.
 
 An instance is a configuration file with its own `data` directory, `photos` and `addr`; they share
 nothing, so one machine can serve any number of galleries, each with its own users. Starting a second

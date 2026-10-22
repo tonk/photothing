@@ -230,17 +230,76 @@ func TestDataDirectoryLock(t *testing.T) {
 	}
 }
 
-// The example shipped in contrib/ must stay valid, and say what its comments say.
-func TestExampleConfigIsValid(t *testing.T) {
+// config.example must stay valid, and document every setting there is.
+func TestExampleConfigIsValidAndComplete(t *testing.T) {
 	clearEnv(t)
-	cfg, _, err := parseArgs([]string{"--config=contrib/photothing.conf.example"})
+	cfg, _, err := parseArgs([]string{"--config=config.example"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.addr != "127.0.0.1:8081" || cfg.trustedProxy != "127.0.0.1" || cfg.scanEvery != 10*time.Minute || cfg.backupKeep != 7 {
+	if cfg.addr != "127.0.0.1:8081" || cfg.trustedProxy != "127.0.0.1" || cfg.scanEvery != 10*time.Minute || cfg.backupKeep != 7 || cfg.secure {
 		t.Errorf("example parsed to %+v", cfg)
 	}
 	if err := configCmd(cfg); err != nil {
 		t.Error(err)
+	}
+
+	raw, err := os.ReadFile("config.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := parseConfigFile(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, e := range entries {
+		have[e.key] = true
+	}
+	var c config
+	newFlagSet(&c).VisitAll(func(f *flag.Flag) {
+		if f.Name == "config" {
+			return // cannot be set in a file
+		}
+		if !have[f.Name] {
+			t.Errorf("config.example has no line for the setting %q", f.Name)
+		}
+		// each setting is explained, with its default and flag
+		if !strings.Contains(string(raw), "\n# "+f.Name+": ") {
+			t.Errorf("config.example does not explain %q", f.Name)
+		}
+		if !strings.Contains(string(raw), "flag: -"+f.Name) && f.Name != "backup-keep" && f.Name != "backup-every" {
+			t.Errorf("config.example does not show the flag and environment variable of %q", f.Name)
+		}
+	})
+	for k := range have {
+		if newFlagSet(&c).Lookup(k) == nil {
+			t.Errorf("config.example sets %q, which is not a setting", k)
+		}
+	}
+}
+
+func TestValidate(t *testing.T) {
+	ok := config{backupKeep: 7, scanEvery: time.Minute, backupEvery: time.Hour}
+	if err := ok.validate(); err != nil {
+		t.Fatal(err)
+	}
+	bad := map[string]func(c *config){
+		"backup-keep":   func(c *config) { c.backupKeep = 0 },
+		"trusted-proxy": func(c *config) { c.trustedProxy = "nginx" },
+		"scan-interval": func(c *config) { c.scanEvery = -time.Second },
+		"backup-every":  func(c *config) { c.backupEvery = -time.Second },
+	}
+	for name, mutate := range bad {
+		c := ok
+		mutate(&c)
+		if err := c.validate(); err == nil {
+			t.Errorf("%s: invalid value accepted", name)
+		}
+	}
+	// the server refuses to start with a setting that would harm the backups
+	dir := t.TempDir()
+	if err := run(config{data: dir, backupKeep: 0}, []string{"serve"}); err == nil || !strings.Contains(err.Error(), "backup-keep") {
+		t.Errorf("serve with backup-keep=0: %v", err)
 	}
 }

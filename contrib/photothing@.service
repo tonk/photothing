@@ -1,7 +1,7 @@
 # systemd template unit: one service per instance, named after its configuration file.
 #   install -m 0755 photothing /usr/local/bin/
 #   useradd --system --no-create-home --shell /usr/sbin/nologin photothing
-#   install -d /etc/photothing && cp contrib/photothing.conf.example /etc/photothing/familie.conf
+#   install -d /etc/photothing && cp config.example /etc/photothing/familie.conf
 #   cp contrib/photothing@.service /etc/systemd/system/ && systemctl daemon-reload
 #   systemctl enable --now photothing@familie       # reads /etc/photothing/familie.conf
 #   systemctl enable --now photothing@werk          # a second instance: /etc/photothing/werk.conf
