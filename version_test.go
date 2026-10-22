@@ -101,7 +101,9 @@ func TestReleaseScripts(t *testing.T) {
 		}
 	}
 	notes, err := run("scripts/release-notes.sh", latest)
-	if err != nil || !strings.Contains(notes, "### Added") || strings.Contains(notes, "## [") {
+	// the notes of a release are its entries under one or more of the Keep a Changelog headings, and nothing of
+	// the next section
+	if err != nil || !regexp.MustCompile(`(?m)^### (Added|Changed|Deprecated|Removed|Fixed|Security)$`).MatchString(notes) || strings.Contains(notes, "## [") {
 		t.Errorf("release notes of %s: %v\n%s", latest, err, notes)
 	}
 	if _, err := run("scripts/release-notes.sh", "99.99.99"); err == nil {

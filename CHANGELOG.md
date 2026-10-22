@@ -12,6 +12,19 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
+### Changed
+- The source address that the About box shows by default, and the place `SECURITY.md` names for reporting a
+  vulnerability, are the public GitHub repository. A release built there already did this; now the source says
+  so too.
+- Database writes no longer wait for the disk on every commit (SQLite in WAL mode with `synchronous=NORMAL`).
+  Scanning a library, signing in and the audit log are much faster on a slow disk; the tests of the store went
+  from 18 to 1 second on a real disk. A crash of the program loses nothing; a power cut or kernel crash can lose
+  the last few commits, but cannot corrupt the database.
+- The release workflow has time limits for its jobs and for `go test`, so a test that hangs fails after 12
+  minutes with a dump of what every goroutine was doing, instead of running for hours.
+
 ## [0.1.0] - 2026-10-22
 
 First version.
