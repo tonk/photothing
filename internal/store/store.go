@@ -121,7 +121,11 @@ var migrations = []struct{ table, column, def string }{
 type Store struct{ db *sql.DB }
 
 func Open(path string) (*Store, error) {
-	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+	// WAL with synchronous=NORMAL: a commit no longer waits for the disk (only the occasional checkpoint does).
+	// A crash of the program loses nothing; a power cut or kernel crash can lose the last few commits but
+	// cannot corrupt the database. With the default (FULL) every commit costs an fsync, which makes a scan of
+	// a big library or a busy audit log many times slower on a network disk.
+	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err

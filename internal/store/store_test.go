@@ -172,3 +172,21 @@ func TestAuditNoiseIsBoundedAndNeverCrowdsOutRealEntries(t *testing.T) {
 		t.Errorf("the newest failed login has id %d: old rows were kept instead of new ones", newest)
 	}
 }
+
+// Every commit must not wait for the disk: with the default synchronous=FULL a library scan or the audit log
+// costs an fsync per row, which is invisible on a RAM disk or a fast NVMe and painful on a cloud disk.
+func TestCommitsDoNotWaitForTheDisk(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var sync, fk int
+	var mode string
+	st.db.QueryRow(`PRAGMA synchronous`).Scan(&sync)
+	st.db.QueryRow(`PRAGMA journal_mode`).Scan(&mode)
+	st.db.QueryRow(`PRAGMA foreign_keys`).Scan(&fk)
+	if sync != 1 || mode != "wal" || fk != 1 { // 1 = NORMAL
+		t.Errorf("synchronous=%d journal_mode=%s foreign_keys=%d, want 1, wal, 1", sync, mode, fk)
+	}
+}
