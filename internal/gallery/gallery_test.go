@@ -4,6 +4,7 @@
 package gallery
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
@@ -20,6 +21,8 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
+	"github.com/dsoprea/go-exif/v3"
+	exifcommon "github.com/dsoprea/go-exif/v3/common"
 
 	"photothing/internal/store"
 )
@@ -497,5 +500,80 @@ func TestDecodingStaysWithinThePixelBudget(t *testing.T) {
 	defer cancel()
 	if _, err := e.lib.Variant(ctx, e.photo("big1.jpg"), "large"); err == nil {
 		t.Error("a request that cannot get memory should give up when its client does")
+	}
+}
+
+// A photo that is stored sideways (EXIF Orientation) must come out upright, in the thumbnail as well as in the
+// large version. The test image has a red left half and a blue right half, so where the red ends up shows
+// what was done to the pixels.
+func TestVariantsAreUprightAccordingToTheOrientationTag(t *testing.T) {
+	stored := image.NewRGBA(image.Rect(0, 0, 80, 40))
+	for y := 0; y < 40; y++ {
+		for x := 0; x < 80; x++ {
+			if x < 40 {
+				stored.Set(x, y, color.RGBA{255, 0, 0, 255})
+			} else {
+				stored.Set(x, y, color.RGBA{0, 0, 255, 255})
+			}
+		}
+	}
+	var plain bytes.Buffer
+	jpeg.Encode(&plain, stored, &jpeg.Options{Quality: 100})
+	withOrientation := func(code int) []byte {
+		b := plain.Bytes()
+		out := append([]byte{}, b[:2]...)
+		im, _ := exifcommon.NewIfdMappingWithStandard()
+		root := exif.NewIfdBuilder(im, exif.NewTagIndex(), exifcommon.IfdStandardIfdIdentity, exifcommon.EncodeDefaultByteOrder)
+		root.AddStandardWithName("Orientation", []uint16{uint16(code)})
+		raw, _ := exif.NewIfdByteEncoder().EncodeToExif(root)
+		return append(append(out, app1(raw)...), b[2:]...)
+	}
+	isRed := func(c color.Color) bool { r, g, b, _ := c.RGBA(); return r>>8 > 200 && g>>8 < 60 && b>>8 < 60 }
+	isBlue := func(c color.Color) bool { r, g, b, _ := c.RGBA(); return b>>8 > 200 && r>>8 < 60 && g>>8 < 60 }
+
+	cases := []struct {
+		code      int
+		w, h      int        // size of the upright photo
+		red, blue [2]float64 // where (fractions of width and height) red and blue must be
+	}{
+		{1, 80, 40, [2]float64{.2, .5}, [2]float64{.8, .5}}, // normal: red left
+		{3, 80, 40, [2]float64{.8, .5}, [2]float64{.2, .5}}, // upside down: red right
+		{6, 40, 80, [2]float64{.5, .2}, [2]float64{.5, .8}}, // rotate 90 clockwise: red top
+		{8, 40, 80, [2]float64{.5, .8}, [2]float64{.5, .2}}, // rotate 270 clockwise: red bottom
+	}
+	e := newEnv(t)
+	for _, c := range cases {
+		name := fmt.Sprintf("o%d.jpg", c.code)
+		e.writeBytes(name, withOrientation(c.code), time.Now().Add(-time.Hour))
+	}
+	e.scan()
+	for _, c := range cases {
+		p := e.photo(fmt.Sprintf("o%d.jpg", c.code))
+		if p.Width != c.w || p.Height != c.h {
+			t.Errorf("orientation %d: stored dimensions %dx%d, want the upright %dx%d", c.code, p.Width, p.Height, c.w, c.h)
+		}
+		for _, kind := range []string{"large", "thumb"} {
+			out, err := e.lib.Variant(context.Background(), p, kind)
+			if err != nil {
+				t.Fatal(err)
+			}
+			img, err := imaging.Open(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b := img.Bounds()
+			if kind == "large" && (b.Dx() != c.w || b.Dy() != c.h) {
+				t.Errorf("orientation %d large: %dx%d, want %dx%d", c.code, b.Dx(), b.Dy(), c.w, c.h)
+			}
+			// The red/blue boundary runs through the middle of the photo, so the square crop of the centre that
+			// the thumbnail is shows the same split: the same two places can be checked in both versions.
+			at := func(f [2]float64) color.Color { return img.At(int(f[0]*float64(b.Dx())), int(f[1]*float64(b.Dy()))) }
+			if !isRed(at(c.red)) {
+				t.Errorf("orientation %d %s: no red at %v (got %v)", c.code, kind, c.red, at(c.red))
+			}
+			if !isBlue(at(c.blue)) {
+				t.Errorf("orientation %d %s: no blue at %v (got %v)", c.code, kind, c.blue, at(c.blue))
+			}
+		}
 	}
 }
