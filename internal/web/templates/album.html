@@ -7,7 +7,7 @@
 {{if .SubAlbums}}
 <ul class="grid albums">
   {{range .SubAlbums}}
-  <li><a href="/a/{{.Path}}"><img loading="lazy" src="/img/{{.Cover}}/thumb" alt=""><span class="cap">{{.Name}} <small>{{.Count}}</small></span></a></li>
+  <li><a href="/a/{{.Path}}"><img loading="lazy" src="/img/{{.Cover}}/thumb?v={{imgv 0}}" alt=""><span class="cap">{{.Name}} <small>{{.Count}}</small></span></a></li>
   {{end}}
 </ul>
 {{end}}

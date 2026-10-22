@@ -37,6 +37,12 @@ const metaVersion = 4
 
 const metaVersionKey = "meta_version"
 
+// RenderVersion identifies how pictures are rendered from the files and the stored information. It is part
+// of the names of the cached thumbnails and large versions and of the URLs the pages use for them, so a
+// change in how photos are turned or scaled can never be hidden by an old cached picture, on the server or in a
+// browser. It follows metaVersion, which is raised whenever what is stored about a file changes.
+const RenderVersion = metaVersion
+
 const (
 	maxPixels = 100_000_000 // refuse decompression bombs
 	// A decoded 100-megapixel image takes about half a gigabyte (measured: 533 MB for one thumbnail). This is the
@@ -371,7 +377,7 @@ func (l *Library) Variant(ctx context.Context, p *store.Photo, kind string) (str
 	if kind != "thumb" && kind != "large" {
 		return "", fmt.Errorf("unknown variant %q", kind)
 	}
-	out := filepath.Join(l.CacheDir, fmt.Sprintf("%d_%s_%d.jpg", p.ID, kind, p.MTime))
+	out := filepath.Join(l.CacheDir, fmt.Sprintf("%d_%s_%d_r%d.jpg", p.ID, kind, p.MTime, RenderVersion))
 	if _, err := os.Stat(out); err == nil {
 		return out, nil
 	}
@@ -438,7 +444,7 @@ func (l *Library) WebVideo(ctx context.Context, p *store.Photo) (string, error) 
 	if !ok || ft.Kind != "video" {
 		return "", fmt.Errorf("%s is not a video", p.Filename)
 	}
-	out := filepath.Join(l.CacheDir, fmt.Sprintf("%d_vcopy_%d%s", p.ID, p.MTime, strings.ToLower(filepath.Ext(p.Filename))))
+	out := filepath.Join(l.CacheDir, fmt.Sprintf("%d_vcopy_%d_r%d%s", p.ID, p.MTime, RenderVersion, strings.ToLower(filepath.Ext(p.Filename))))
 	if _, err := os.Stat(out); err == nil {
 		return out, nil
 	}
@@ -477,8 +483,9 @@ func (l *Library) WebVideo(ctx context.Context, p *store.Photo) (string, error) 
 	return out, nil
 }
 
-// cacheName matches the files of the image cache: <id>_<kind>_<mtime>.<ext>.
-var cacheName = regexp.MustCompile(`^(\d+)_(thumb|large|vcopy)_(\d+)\.[a-z0-9]+$`)
+// cacheName matches the files of the image cache: <id>_<kind>_<mtime>_r<RenderVersion>.<ext>. Files from before
+// the version was part of the name (no _r) match too, and are removed as outdated.
+var cacheName = regexp.MustCompile(`^(\d+)_(thumb|large|vcopy)_(\d+)(?:_r(\d+))?\.[a-z0-9]+$`)
 
 // PruneCache removes cached variants whose photo no longer exists or whose mtime is stale,
 // and leftovers of interrupted conversions.
@@ -499,7 +506,8 @@ func (l *Library) PruneCache() {
 		}
 		id, _ := strconv.ParseInt(m[1], 10, 64)
 		mt, _ := strconv.ParseInt(m[3], 10, 64)
-		if p, err := l.store.PhotoByID(id); err != nil || p.MTime != mt {
+		ver, _ := strconv.Atoi(m[4]) // 0 for files made before versions existed
+		if p, err := l.store.PhotoByID(id); err != nil || p.MTime != mt || ver != RenderVersion {
 			os.Remove(full)
 		}
 	}

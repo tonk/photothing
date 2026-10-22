@@ -10,6 +10,9 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,5 +136,59 @@ func TestPhotosWithAStaleOrientationTagAreShownAsStored(t *testing.T) {
 				t.Errorf("%s %s: the red half is not where it should be", c.name, kind)
 			}
 		}
+	}
+}
+
+// A thumbnail made by an older version (named <id>_thumb_<mtime>.jpg) was rendered with the rules of that
+// version: sideways, in the case that started this. The name did not change when the rules did, so it was
+// served again and again. Cached pictures now carry the rendering version, and old ones are never used.
+func TestPicturesCachedByAnOlderVersionAreNotUsed(t *testing.T) {
+	e := newEnv(t)
+	e.writeBytes("stale.jpg", photoWithOrientation(t, 40, 80, 6, 80, 40), time.Now().Add(-time.Hour))
+	e.scan()
+	p := e.photo("stale.jpg")
+
+	// what the previous version left behind: the same photo rendered sideways, under the old name
+	oldName := filepath.Join(e.lib.CacheDir, fmt.Sprintf("%d_thumb_%d.jpg", p.ID, p.MTime))
+	sideways := image.NewRGBA(image.Rect(0, 0, ThumbSize, ThumbSize))
+	for y := 0; y < ThumbSize; y++ {
+		for x := 0; x < ThumbSize; x++ {
+			sideways.Set(x, y, color.RGBA{0, 0, 255, 255}) // all blue: nothing like the photo (red on top)
+		}
+	}
+	var buf bytes.Buffer
+	jpeg.Encode(&buf, sideways, nil)
+	if err := os.WriteFile(oldName, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := e.lib.Variant(context.Background(), p, "thumb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out == oldName {
+		t.Fatal("the picture of an older version was served")
+	}
+	if want := fmt.Sprintf("_r%d.jpg", RenderVersion); !strings.HasSuffix(out, want) {
+		t.Errorf("cache file %s does not carry the rendering version", filepath.Base(out))
+	}
+	img, _ := imaging.Open(out)
+	if r, _, b, _ := img.At(180, 60).RGBA(); r>>8 < 200 || b>>8 > 60 { // the top of the thumbnail is the red half
+		t.Error("the new thumbnail is not rendered from the photo")
+	}
+
+	// the old file is removed, the new one stays, and the cache of a photo that is gone is cleared too
+	e.lib.PruneCache()
+	if _, err := os.Stat(oldName); err == nil {
+		t.Error("the outdated cache file was not removed")
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Error("the current cache file was removed")
+	}
+	other := filepath.Join(e.lib.CacheDir, fmt.Sprintf("%d_large_%d_r%d.jpg", p.ID, p.MTime, RenderVersion-1))
+	os.WriteFile(other, buf.Bytes(), 0o644)
+	e.lib.PruneCache()
+	if _, err := os.Stat(other); err == nil {
+		t.Error("a cache file of another rendering version was kept")
 	}
 }

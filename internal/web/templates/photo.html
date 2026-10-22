@@ -9,9 +9,9 @@
   <div class="stage">
     {{if .Prev}}<a class="nav prev" href="/p/{{.Prev}}" aria-label="{{t "Previous"}}">‹</a>{{end}}
     {{if $p.IsVideo}}
-    <video controls preload="metadata" poster="/img/{{$p.ID}}/large" src="/img/{{$p.ID}}/video">{{t "Your browser cannot play this video."}}</video>
+    <video controls preload="metadata" poster="/img/{{$p.ID}}/large?v={{imgv $p.MTime}}" src="/img/{{$p.ID}}/video">{{t "Your browser cannot play this video."}}</video>
     {{else}}
-    <img src="/img/{{$p.ID}}/large" alt="{{if $p.Caption}}{{$p.Caption}}{{else}}{{$p.Filename}}{{end}}">
+    <img src="/img/{{$p.ID}}/large?v={{imgv $p.MTime}}" alt="{{if $p.Caption}}{{$p.Caption}}{{else}}{{$p.Filename}}{{end}}">
     {{end}}
     {{if .Next}}<a class="nav next" href="/p/{{.Next}}" aria-label="{{t "Next"}}">›</a>{{end}}
   </div>

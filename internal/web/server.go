@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -132,7 +133,12 @@ func New(st *store.Store, lib *gallery.Library, box *auth.Box, opts Options) (*S
 				}
 				return t.Local().Format("2006-01-02 15:04")
 			},
-			"v":        func() string { return ver },
+			"v": func() string { return ver },
+			// imgv is the ?v= part of picture URLs: the file's modification time and the rendering version, so a
+			// browser fetches a picture again when the file or the way it is rendered has changed.
+			"imgv": func(mtime int64) string {
+				return strconv.FormatInt(mtime, 10) + "." + strconv.Itoa(gallery.RenderVersion)
+			},
 			"upper":    strings.ToUpper,
 			"langName": langName,
 		}

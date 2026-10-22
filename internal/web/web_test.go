@@ -858,3 +858,31 @@ func TestStatusLineAndAboutBox(t *testing.T) {
 		t.Error("repository address was not escaped")
 	}
 }
+
+// Browsers keep pictures for a day under the same URL. The picture URLs therefore carry the file's time and the
+// rendering version, so a fix in how photos are rendered shows up at once instead of tomorrow.
+func TestPictureURLsAreVersioned(t *testing.T) {
+	e := newEnv(t)
+	e.addPhoto("album/a.jpg")
+	e.scan()
+	id := e.photoID("album/a.jpg")
+	p, _ := e.st.PhotoByID(id)
+	ver := fmt.Sprintf("%d.%d", p.MTime, gallery.RenderVersion)
+	c := e.login("vera")
+
+	if body := c.mustGet("/a/album"); !strings.Contains(body, fmt.Sprintf(`src="/img/%d/thumb?v=%s"`, id, ver)) {
+		t.Errorf("a thumbnail URL carries no version: %s", body)
+	}
+	if body := c.mustGet(fmt.Sprintf("/p/%d", id)); !strings.Contains(body, fmt.Sprintf(`src="/img/%d/large?v=%s"`, id, ver)) {
+		t.Error("the large picture URL carries no version")
+	}
+	if body := c.mustGet("/"); !strings.Contains(body, fmt.Sprintf(`/img/%d/thumb?v=0.%d"`, id, gallery.RenderVersion)) {
+		t.Error("an album cover URL carries no rendering version")
+	}
+	// the same URL still works with or without the version
+	for _, u := range []string{fmt.Sprintf("/img/%d/thumb", id), fmt.Sprintf("/img/%d/thumb?v=%s", id, ver)} {
+		if code, _, _ := c.get(u); code != http.StatusOK {
+			t.Errorf("GET %s: %d", u, code)
+		}
+	}
+}

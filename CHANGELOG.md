@@ -17,6 +17,10 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 First version.
 
 ### Fixed
+- Thumbnails and large pictures that were cached by an earlier version kept being served after how photos are
+  turned or scaled had changed, because their file names (and the URLs the pages used) did not change. Cached
+  pictures now carry the rendering version in their name and the pages ask for them with `?v=` and the version,
+  so a fix shows up at once, in the server's cache and in the browser; outdated cache files are removed at start.
 - Photos whose pixels had already been turned upright, but whose EXIF Orientation tag was left behind (what
   some HEIC-to-JPEG conversions produce), were turned a second time and shown sideways. They are recognised
   (tag 5 to 8, portrait pixels, and EXIF dimensions that are the stored ones turned the other way), shown as
