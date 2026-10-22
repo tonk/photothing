@@ -28,6 +28,7 @@ jobs:
   verify:
     name: Check the tag
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
@@ -47,6 +48,7 @@ jobs:
     name: Test
     needs: verify
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -58,12 +60,15 @@ jobs:
       - name: Formatting
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
-      - run: go test -count=1 ./...
+      # A test that hangs fails after 12 minutes with a dump of what every goroutine was doing, instead of
+      # keeping the job busy for hours. (The first run on a cold build cache is slow: modernc.org/sqlite is large.)
+      - run: go test -count=1 -timeout 12m ./...
 
   build:
     name: Build ${{ matrix.arch }}
     needs: [verify, test]
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -121,6 +126,7 @@ jobs:
     name: Publish the release
     needs: [verify, build]
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
