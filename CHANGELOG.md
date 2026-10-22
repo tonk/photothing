@@ -16,6 +16,13 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 First version.
 
+### Fixed
+- Photos whose pixels had already been turned upright, but whose EXIF Orientation tag was left behind (what
+  some HEIC-to-JPEG conversions produce), were turned a second time and shown sideways. They are recognised
+  (tag 5 to 8, portrait pixels, and EXIF dimensions that are the stored ones turned the other way), shown as
+  stored and marked in the information panel. HEIC files are never turned twice either: libheif has already
+  applied the rotation.
+
 ### Security
 First review of the code, by the author and by an independent reviewer, with `govulncheck` (no vulnerabilities
 in the code that is used). Fixed before release:

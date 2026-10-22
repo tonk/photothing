@@ -14,6 +14,7 @@ import (
 // display order, the privacy rules and the translations cannot drift apart.
 const (
 	LabelOrientation  = "Orientation"
+	LabelOrientNote   = "Orientation note"
 	LabelMake         = "Camera make"
 	LabelModel        = "Camera model"
 	LabelLens         = "Lens"
@@ -44,6 +45,7 @@ const (
 // ExifOrder is the order in which the fields are shown.
 var ExifOrder = []string{
 	LabelOrientation,
+	LabelOrientNote,
 	LabelMake, LabelModel, LabelLens,
 	LabelFocalLength, LabelFocal35, LabelAperture, LabelExposure, LabelISO, LabelExposureComp,
 	LabelProgram, LabelExposureMode, LabelMetering, LabelFlash, LabelWhiteBalance, LabelScene, LabelColorSpace,
@@ -81,6 +83,9 @@ var (
 	colorSpaces   = map[int]string{1: "sRGB", 0xFFFF: "Uncalibrated"}
 )
 
+// orientationIgnored is the note shown when the Orientation tag of a file is not applied (see staleOrientation).
+const orientationIgnored = "Ignored: the pixels are already upright"
+
 const (
 	flashFired    = "Fired"
 	flashNotFired = "Did not fire"
@@ -107,6 +112,7 @@ func ExifValueTexts() map[string][]string {
 	}
 	return map[string][]string{
 		LabelOrientation:  of(orientations),
+		LabelOrientNote:   {orientationIgnored},
 		LabelFlash:        {flashFired, flashNotFired},
 		LabelWhiteBalance: of(whiteBalances),
 		LabelMetering:     of(meteringModes),

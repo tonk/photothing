@@ -18,6 +18,21 @@ type exifMeta struct {
 	Taken       time.Time
 	Orientation int
 	HasGPS      bool
+	// PixelX and PixelY are the image dimensions the camera wrote into the EXIF data (0 when absent).
+	PixelX, PixelY int
+}
+
+// staleOrientation recognises a file whose pixels were already turned upright while the Orientation tag
+// was left as it was: converters from HEIC to JPEG, and tools that rotate the pixels but copy the old
+// metadata, produce them. Applying the tag to such a file turns the photo a second time.
+//
+// A camera records the pixels as the sensor delivers them (landscape) and sets Orientation 5-8 to say
+// "turn this to see it upright", and writes the sensor's dimensions in the EXIF data, so for a normal file
+// the stored pixels are landscape. A file whose stored pixels are portrait, with a tag of 5-8 and EXIF
+// dimensions that are exactly the stored ones turned the other way, is a file that has been rotated since.
+// Portrait pixels with EXIF dimensions that agree (a camera with a portrait sensor) are left alone.
+func staleOrientation(tag, storedW, storedH, exifW, exifH int) bool {
+	return tag >= 5 && tag <= 8 && storedW < storedH && exifW == storedH && exifH == storedW
 }
 
 func (m *exifMeta) setGPS(lat, lon float64) {
@@ -109,6 +124,10 @@ func readExif(r io.Reader) exifMeta {
 				m.Orientation = int(v[0])
 				m.enum(LabelOrientation, orientations, m.Orientation)
 			}
+		case "PixelXDimension":
+			m.PixelX = firstUint(t.Value)
+		case "PixelYDimension":
+			m.PixelY = firstUint(t.Value)
 		case "Flash":
 			if v, ok := firstUint16(t.Value); ok {
 				m.Display[LabelFlash] = flashText(v)
@@ -190,6 +209,21 @@ func setStr(dst map[string]string, label string, v any) {
 			dst[label] = s
 		}
 	}
+}
+
+// firstUint reads the first value of a SHORT or LONG tag (EXIF allows both for the pixel dimensions).
+func firstUint(v any) int {
+	switch u := v.(type) {
+	case []uint16:
+		if len(u) > 0 {
+			return int(u[0])
+		}
+	case []uint32:
+		if len(u) > 0 {
+			return int(u[0])
+		}
+	}
+	return 0
 }
 
 func firstUint16(v any) (int, bool) {

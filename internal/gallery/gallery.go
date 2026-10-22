@@ -33,7 +33,7 @@ import (
 // metaVersion numbers what is read from a file into the database (dimensions, EXIF fields, ...). When
 // a release reads more, it raises this number and the next scan reads every file again, once, so
 // existing photos get the new details without anybody touching their files.
-const metaVersion = 3
+const metaVersion = 4
 
 const metaVersionKey = "meta_version"
 
@@ -276,7 +276,9 @@ func (l *Library) readPhoto(ctx context.Context, rel string, info fs.FileInfo) (
 			return nil, err
 		}
 		meta = readExif(f)
-		if meta.Orientation >= 5 && meta.Orientation <= 8 {
+		if staleOrientation(meta.Orientation, cfg.Width, cfg.Height, meta.PixelX, meta.PixelY) {
+			meta.Display[LabelOrientNote] = orientationIgnored // the dimensions are already those of the upright photo
+		} else if meta.Orientation >= 5 && meta.Orientation <= 8 {
 			ph.Width, ph.Height = ph.Height, ph.Width
 		}
 	case ft.Kind == "video":
@@ -332,6 +334,12 @@ func (l *Library) readPhoto(ctx context.Context, rel string, info fs.FileInfo) (
 	return ph, nil
 }
 
+// orientationIgnoredFor reports whether the Orientation tag of this photo was found to be stale at scan time.
+func orientationIgnoredFor(p *store.Photo) bool {
+	_, ignored := p.Exif[LabelOrientNote]
+	return ignored
+}
+
 // decode returns the image of a photo (for videos: a frame), with EXIF orientation applied.
 func (l *Library) decode(ctx context.Context, p *store.Photo) (image.Image, error) {
 	ft, _ := typeOf(p.Filename)
@@ -341,7 +349,7 @@ func (l *Library) decode(ctx context.Context, p *store.Photo) (image.Image, erro
 			return nil, err
 		}
 		defer f.Close()
-		return imaging.Decode(f, imaging.AutoOrientation(true))
+		return imaging.Decode(f, imaging.AutoOrientation(!orientationIgnoredFor(p)))
 	}
 	abs, err := l.abs(p.Path)
 	if err != nil {
@@ -352,7 +360,9 @@ func (l *Library) decode(ctx context.Context, p *store.Photo) (image.Image, erro
 		return nil, err
 	}
 	defer cleanup()
-	return imaging.Open(jpg, imaging.AutoOrientation(true))
+	// libheif and ffmpeg turn the picture themselves, so whatever orientation tag is left in their output
+	// must not be applied again; the preview of a RAW file may still carry one.
+	return imaging.Open(jpg, imaging.AutoOrientation(ft.Tool == "raw"))
 }
 
 // Variant returns the path of a cached resized JPEG, generating it when needed.

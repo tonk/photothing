@@ -28,6 +28,7 @@ var nl = map[string]string{
 
 	// photo information: labels
 	"Orientation":                     "Oriëntatie",
+	"Orientation note":                "Opmerking oriëntatie",
 	"Camera make":                     "Cameramerk",
 	"Camera model":                    "Cameramodel",
 	"Lens":                            "Lens",
@@ -55,6 +56,7 @@ var nl = map[string]string{
 	"Codec":                           "Codec",
 
 	// photo information: values
+	"Ignored: the pixels are already upright": "Genegeerd: de pixels staan al rechtop",
 	"Normal":                "Normaal",
 	"Mirrored horizontally": "Horizontaal gespiegeld",
 	"Rotated 180°":          "180° gedraaid",

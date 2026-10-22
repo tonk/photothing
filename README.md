@@ -98,7 +98,9 @@ and never to anonymous visitors.
 
 The photo page shows, in this order: the orientation (whether the file is stored sideways or mirrored, which
 is what the EXIF Orientation tag says; photos and thumbnails are always shown upright, and the dimensions
-are those of the upright photo), camera make and model, lens, focal length (also as 35 mm
+are those of the upright photo; a file whose pixels were already turned upright but still carries the old
+tag, as some HEIC-to-JPEG converters leave them, is recognised, shown as stored, and marked "Ignored: the
+pixels are already upright"), camera make and model, lens, focal length (also as 35 mm
 equivalent), aperture, exposure time, ISO, exposure compensation, exposure program and mode, metering
 mode, flash, white balance, scene type, colour space, software, artist, copyright, description, and GPS
 position, altitude and direction; for video the duration and codec. Only fields that are present in the
