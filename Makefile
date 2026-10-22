@@ -3,6 +3,9 @@ BACKUP  ?=
 PHOTOS  ?= ./photos
 DATA    ?= ./data
 ADDR    ?= 127.0.0.1:8080
+CONFIG  ?=
+# with CONFIG=file the settings come from that configuration file instead of PHOTOS/DATA/ADDR
+FLAGS   = $(if $(CONFIG),--config=$(CONFIG),-photos $(PHOTOS) -data $(DATA) -addr $(ADDR))
 LDFLAGS := -s -w
 
 .DEFAULT_GOAL := build
@@ -12,14 +15,14 @@ LDFLAGS := -s -w
 build: ## Build the binary
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o $(BINARY) .
 
-run: build ## Build and serve (PHOTOS=, DATA=, ADDR= can be overridden)
-	./$(BINARY) -photos $(PHOTOS) -data $(DATA) -addr $(ADDR) serve
+run: build ## Build and serve (PHOTOS=, DATA=, ADDR= or CONFIG=file can be given)
+	./$(BINARY) $(FLAGS) serve
 
 scan: build ## Rescan the photo directory
-	./$(BINARY) -photos $(PHOTOS) -data $(DATA) scan
+	./$(BINARY) $(FLAGS) scan
 
 backup: build ## Write a backup archive of the database and key (BACKUP=file to choose the name)
-	./$(BINARY) -data $(DATA) backup $(BACKUP)
+	./$(BINARY) $(if $(CONFIG),--config=$(CONFIG),-data $(DATA)) backup $(BACKUP)
 
 test: ## Run the tests
 	go test ./...

@@ -38,7 +38,9 @@ type env struct {
 	seq    int
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, Options{}) }
+
+func newEnvWith(t *testing.T, opts Options) *env {
 	t.Helper()
 	dir := t.TempDir()
 	photos := filepath.Join(dir, "photos")
@@ -58,7 +60,7 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err := New(st, lib, box, false)
+	srv, err := New(st, lib, box, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

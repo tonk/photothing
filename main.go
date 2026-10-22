@@ -37,34 +37,24 @@ commands:
   public on|off               allow anonymous viewing of the gallery
   backup [file]               write a backup archive (database + key); safe while the server runs
   restore [-force] <file>     restore an archive into -data (stop the server first)
+  config                      show the effective settings (after --config, environment and flags)
+
+Run several instances by giving each its own configuration file:
+  photothing --config=/etc/photothing/familie.conf serve
+  photothing --config=/etc/photothing/familie.conf user add ton admin
 
 global flags (before the command):
 `
 
-type config struct {
-	photos, data, addr string
-	secure             bool
-	scanEvery          time.Duration
-	backupDir          string
-	backupKeep         int
-	backupEvery        time.Duration
-}
-
 func main() {
-	var cfg config
-	fs := flag.NewFlagSet("photothing", flag.ExitOnError)
-	fs.StringVar(&cfg.photos, "photos", env("PHOTOTHING_PHOTOS", "./photos"), "directory with photos (read-only use)")
-	fs.StringVar(&cfg.data, "data", env("PHOTOTHING_DATA", "./data"), "directory for database, key and image cache")
-	fs.StringVar(&cfg.addr, "addr", env("PHOTOTHING_ADDR", "127.0.0.1:8080"), "listen address")
-	fs.BoolVar(&cfg.secure, "secure-cookies", os.Getenv("PHOTOTHING_SECURE_COOKIES") == "1", "mark cookies Secure (enable behind HTTPS)")
-	fs.DurationVar(&cfg.scanEvery, "scan-interval", envDuration("PHOTOTHING_SCAN_INTERVAL", 10*time.Minute), "rescan the photo directory this often (0 = only at start and from the Admin page)")
-	fs.StringVar(&cfg.backupDir, "backup-dir", env("PHOTOTHING_BACKUP_DIR", ""), "write automatic backups to this directory (serve only)")
-	fs.IntVar(&cfg.backupKeep, "backup-keep", 7, "number of automatic backups to keep")
-	fs.DurationVar(&cfg.backupEvery, "backup-every", 24*time.Hour, "time between automatic backups")
-	fs.Usage = func() { fmt.Fprint(os.Stderr, usage); fs.PrintDefaults() }
-	fs.Parse(os.Args[1:])
-
-	args := fs.Args()
+	cfg, args, err := parseArgs(os.Args[1:])
+	if errors.Is(err, flag.ErrHelp) {
+		os.Exit(0)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
+	}
 	if len(args) == 0 {
 		args = []string{"serve"}
 	}
@@ -74,25 +64,19 @@ func main() {
 	}
 }
 
-func env(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
-}
-
-func envDuration(k string, def time.Duration) time.Duration {
-	if d, err := time.ParseDuration(os.Getenv(k)); err == nil {
-		return d
-	}
-	return def
-}
-
 func run(cfg config, args []string) error {
+	if args[0] == "config" {
+		return configCmd(cfg)
+	}
 	if err := os.MkdirAll(cfg.data, 0o700); err != nil {
 		return err
 	}
 	if args[0] == "restore" { // must not open (and thereby create) the database first
+		unlock, err := lockDataDir(cfg.data) // fails while the server runs
+		if err != nil {
+			return err
+		}
+		defer unlock()
 		return restoreCmd(cfg, args[1:])
 	}
 	st, err := store.Open(filepath.Join(cfg.data, "photothing.db"))
@@ -135,6 +119,11 @@ func openLibrary(cfg config, st *store.Store) (*gallery.Library, error) {
 }
 
 func serve(cfg config, st *store.Store) error {
+	unlock, err := lockDataDir(cfg.data)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	lib, err := openLibrary(cfg, st)
 	if err != nil {
 		return err
@@ -143,7 +132,11 @@ func serve(cfg config, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	srv, err := web.New(st, lib, box, cfg.secure)
+	trusted, err := web.ParseTrustedProxies(cfg.trustedProxy)
+	if err != nil {
+		return err
+	}
+	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted})
 	if err != nil {
 		return err
 	}
@@ -151,6 +144,12 @@ func serve(cfg config, st *store.Store) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cfg.configFile != "" {
+		log.Printf("settings from %s", cfg.configFile)
+	}
+	if len(trusted) > 0 {
+		log.Printf("trusting X-Forwarded-* headers from %s", cfg.trustedProxy)
+	}
 	log.Printf("optional format support: %s", lib.Tools)
 	go housekeeping(ctx, cfg, st, lib)
 
@@ -234,6 +233,20 @@ func housekeeping(ctx context.Context, cfg config, st *store.Store, lib *gallery
 			doBackup()
 		}
 	}
+}
+
+// configCmd prints the effective settings and checks the ones that can be checked without starting.
+func configCmd(cfg config) error {
+	for _, l := range cfg.lines() {
+		fmt.Println(l)
+	}
+	if _, err := web.ParseTrustedProxies(cfg.trustedProxy); err != nil {
+		return err
+	}
+	if cfg.backupKeep < 1 {
+		return errors.New("backup-keep must be at least 1")
+	}
+	return nil
 }
 
 func backupCmd(cfg config, st *store.Store, args []string) error {

@@ -1,0 +1,41 @@
+# nginx in front of one photothing instance (see photothing.conf.example: trusted-proxy = 127.0.0.1).
+# For a second instance, copy this file with another server_name and the other port.
+
+upstream photothing_familie {
+    server 127.0.0.1:8081;
+    keepalive 8;
+}
+
+server {
+    listen 80;
+    server_name fotos.example.nl;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name fotos.example.nl;
+
+    ssl_certificate     /etc/letsencrypt/live/fotos.example.nl/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/fotos.example.nl/privkey.pem;
+
+    # photothing only receives small forms; photos are never uploaded through it.
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://photothing_familie;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_set_header Host              $host;
+        # Overwrite (do not append to) the forwarded address. nginx is the first proxy the visitor meets,
+        # so $remote_addr is the visitor, and anything the visitor sent in this header is discarded.
+        # If nginx itself sits behind another proxy or a CDN, use the realip module to recover the
+        # visitor's address first, and list that proxy's addresses with set_real_ip_from.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # The first view of a large photo, HEIC file or video is converted on the spot.
+        proxy_read_timeout 120s;
+    }
+}

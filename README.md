@@ -16,19 +16,57 @@ A small, self-hosted photo gallery in Go. One binary, SQLite, no external servic
     ./photothing -photos /path/to/photos -data ./data user add ton admin   # prompts for a password
     ./photothing -photos /path/to/photos -data ./data serve                # http://127.0.0.1:8080
 
-Flags go before the command; most have an environment variable:
+Settings are command-line flags (before the command). Most can also come from an environment variable
+or from a configuration file (next section). Precedence, weakest first: built-in default, environment
+variable, configuration file, command-line flag.
 
 | flag | env | default | meaning |
 |---|---|---|---|
 | `-photos` | `PHOTOTHING_PHOTOS` | `./photos` | the photo directory (only ever read) |
 | `-data` | `PHOTOTHING_DATA` | `./data` | database, key and image cache |
 | `-addr` | `PHOTOTHING_ADDR` | `127.0.0.1:8080` | listen address |
-| `-secure-cookies` | `PHOTOTHING_SECURE_COOKIES=1` | off | mark cookies Secure; use behind HTTPS |
+| `-config` / `--config=FILE` | `PHOTOTHING_CONFIG` | none | read settings from this file |
+| `-secure-cookies` | `PHOTOTHING_SECURE_COOKIES=1` | off | always mark cookies Secure (https seen through a trusted proxy does this by itself) |
+| `-trusted-proxy` | `PHOTOTHING_TRUSTED_PROXY` | none | addresses/CIDRs of reverse proxies whose `X-Forwarded-For`/`-Proto` are believed |
 | `-scan-interval` | `PHOTOTHING_SCAN_INTERVAL` | `10m` | rescan the photo directory this often; `0` = only at start and from the Admin page |
 | `-backup-dir` | `PHOTOTHING_BACKUP_DIR` | none | write automatic backups here |
 | `-backup-keep` / `-backup-every` | | `7` / `24h` | how many to keep and how often |
 
-Other commands: `scan`, `user add|passwd|mfa-reset|list`, `public on|off`, `backup [file]`, `restore [-force] <file>`.
+Other commands: `scan`, `user add|passwd|mfa-reset|list`, `public on|off`, `backup [file]`, `restore [-force] <file>`,
+and `config`, which prints the effective settings and checks them.
+
+## Configuration file and several instances
+
+    photothing --config=/etc/photothing/familie.conf serve
+    photothing --config=/etc/photothing/familie.conf user add ton admin
+
+A configuration file is `key = value` lines named like the flags above (`photos`, `data`, `addr`,
+`trusted-proxy`, `scan-interval`, `backup-dir`, `backup-keep`, `backup-every`, `secure-cookies`).
+`#` and `;` start a comment line, values may be quoted, `yes/no/on/off` work for switches, and a relative
+path is relative to the directory of the file. Mistakes are reported with the file name and line number,
+and a flag given on the command line always wins over the file. See `contrib/photothing.conf.example`.
+
+An instance is a configuration file with its own `data` directory, `photos` and `addr`; they share
+nothing, so one machine can serve any number of galleries, each with its own users. Starting a second
+server on the same data directory is refused (and so is `restore` while a server is using it).
+`contrib/photothing@.service` is a hardened systemd template: `systemctl enable --now photothing@familie`
+starts the instance configured in `/etc/photothing/familie.conf`.
+
+## Behind a reverse proxy (nginx)
+
+Run photothing on a loopback port and let nginx handle TLS (`contrib/nginx.conf.example`). Every request
+then arrives from nginx, so photothing needs to be told which headers to believe:
+
+    trusted-proxy = 127.0.0.1
+
+The `X-Forwarded-For` and `X-Forwarded-Proto` headers are then believed, but only on connections from a
+listed proxy. Visitors get their own login limits, the audit log and the session list show their real
+addresses, cookies become Secure when the visitor used https, and password reset links get the right
+scheme. From any other connection the headers are ignored, so a visitor cannot invent an address to escape
+the login limits. The visitor is the first address, reading from the right, that is not a trusted proxy;
+whatever a visitor put in front of it is not believed. Have nginx set the header with
+`proxy_set_header X-Forwarded-For $remote_addr;` (overwrite, not append) as in the example. Without
+`trusted-proxy`, photothing sees nginx's address for everybody and all visitors share one login limit.
 
 ## Albums
 
@@ -93,7 +131,8 @@ HEIC and RAW files are shown as a converted JPEG; the original is downloaded as 
 
 ## Layout
 
-    main.go                 CLI, server start-up, housekeeping
+    main.go, config.go      CLI, settings and configuration file, server start-up, housekeeping
+    contrib/                example configuration, systemd template unit, nginx configuration
     internal/store          SQLite schema, upgrades and queries
     internal/auth           passwords, RBAC, TOTP, recovery codes, secret box, throttle
     internal/gallery        directory scan, EXIF, thumbnails, optional converters
@@ -105,9 +144,8 @@ text lacks a translation.
 
 ## Known limits
 
-- Behind a reverse proxy, login throttling sees the proxy's address for every visitor. Trusted-proxy
-  handling is not built yet.
-- There is no TLS: use a reverse proxy and `-secure-cookies`.
+- There is no TLS of its own: use a reverse proxy (see above).
+- Login throttling is kept in memory and starts again after a restart.
 - Per-album rules name users, not roles; there are no groups.
 - Search is a plain substring match, fine for tens of thousands of photos, not for millions.
 - RAW support depends on the camera's embedded preview; it was not tested with real RAW files.

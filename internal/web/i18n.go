@@ -57,9 +57,9 @@ func (s *Server) pickLang(r *http.Request, u *store.User) string {
 	return "en"
 }
 
-func (s *Server) setLangCookie(w http.ResponseWriter, lang string) {
+func (s *Server) setLangCookie(w http.ResponseWriter, r *http.Request, lang string) {
 	http.SetCookie(w, &http.Cookie{Name: langCookie, Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
-		HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode})
+		HttpOnly: true, Secure: s.secureCookies(r), SameSite: http.SameSiteLaxMode})
 }
 
 // langName is a language's name in that language (never translated).

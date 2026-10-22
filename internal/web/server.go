@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/netip"
 	"path"
 	"strings"
 	"time"
@@ -39,11 +40,12 @@ const (
 var pageNames = []string{"album", "photo", "search", "login", "mfa", "reset", "account", "admin", "audit", "access", "error"}
 
 type Server struct {
-	store  *store.Store
-	lib    *gallery.Library
-	box    *auth.Box
-	secure bool                                     // set the Secure flag on cookies (use behind TLS)
-	pages  map[string]map[string]*template.Template // language -> page -> templates
+	store   *store.Store
+	lib     *gallery.Library
+	box     *auth.Box
+	secure  bool                                     // always set the Secure flag on cookies (use behind TLS)
+	trusted []netip.Prefix                           // proxies whose X-Forwarded-* headers are believed
+	pages   map[string]map[string]*template.Template // language -> page -> templates
 
 	// Login throttles: per client IP, per IP+username pair and (loosely) per username. The pair key
 	// keeps an attacker from locking the real user out of their own sign-in.
@@ -67,9 +69,15 @@ func assetVersion() string {
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }
 
-func New(st *store.Store, lib *gallery.Library, box *auth.Box, secureCookies bool) (*Server, error) {
+// Options configure the server.
+type Options struct {
+	SecureCookies  bool           // mark cookies Secure even when HTTPS is not detected
+	TrustedProxies []netip.Prefix // see ParseTrustedProxies
+}
+
+func New(st *store.Store, lib *gallery.Library, box *auth.Box, opts Options) (*Server, error) {
 	ver := assetVersion()
-	s := &Server{store: st, lib: lib, box: box, secure: secureCookies,
+	s := &Server{store: st, lib: lib, box: box, secure: opts.SecureCookies, trusted: opts.TrustedProxies,
 		pages:   map[string]map[string]*template.Template{},
 		ipThr:   auth.NewThrottle(30, 15*time.Minute),
 		pairThr: auth.NewThrottle(5, 15*time.Minute),
@@ -152,7 +160,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Reject cross-origin state-changing requests (CSRF) based on Fetch metadata / Origin.
 	cop := http.NewCrossOriginProtection()
-	return logRequests(securityHeaders(s.withState(cop.Handler(mux))))
+	return s.trustProxy(logRequests(securityHeaders(s.withState(cop.Handler(mux)))))
 }
 
 func (s *Server) publicMode() bool { return s.store.Setting(settingPublic) == "1" }

@@ -15,14 +15,14 @@ import (
 	"photothing/internal/store"
 )
 
-func (s *Server) setCookie(w http.ResponseWriter, token string, expires time.Time) {
+func (s *Server) setCookie(w http.ResponseWriter, r *http.Request, token string, expires time.Time) {
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", Expires: expires,
-		HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode})
+		HttpOnly: true, Secure: s.secureCookies(r), SameSite: http.SameSiteLaxMode})
 }
 
-func (s *Server) clearCookie(w http.ResponseWriter) {
+func (s *Server) clearCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode})
+		HttpOnly: true, Secure: s.secureCookies(r), SameSite: http.SameSiteLaxMode})
 }
 
 // startSession always issues a fresh token (prevents session fixation) and sets the cookie.
@@ -36,7 +36,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, userID int
 	if err := s.store.CreateSession(hash, userID, mfaPending, exp, clientIP(r), r.UserAgent()); err != nil {
 		return err
 	}
-	s.setCookie(w, token, exp)
+	s.setCookie(w, r, token, exp)
 	// Make the rest of this request see the new session (e.g. to render the account page after a password change).
 	st := s.state(r)
 	st.Session, st.Pending = &store.Session{TokenHash: hash, UserID: userID, MFAPending: mfaPending}, mfaPending
@@ -209,7 +209,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		s.audit(r, "logout", u.Username, "")
 	}
 	s.endCurrentSession(r)
-	s.clearCookie(w)
+	s.clearCookie(w, r)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -223,7 +223,7 @@ func (s *Server) handlePrefs(w http.ResponseWriter, r *http.Request) {
 
 	lang := r.PostFormValue("lang")
 	if validLang(lang) {
-		s.setLangCookie(w, lang)
+		s.setLangCookie(w, r, lang)
 	} else {
 		lang = ""
 	}

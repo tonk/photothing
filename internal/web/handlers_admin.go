@@ -223,7 +223,7 @@ func (s *Server) handleUserResetLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scheme := "http"
-	if s.secure || r.TLS != nil {
+	if s.secureCookies(r) {
 		scheme = "https"
 	}
 	link := scheme + "://" + r.Host + "/reset?t=" + token

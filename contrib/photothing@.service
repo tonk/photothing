@@ -1,0 +1,42 @@
+# systemd template unit: one service per instance, named after its configuration file.
+#   install -m 0755 photothing /usr/local/bin/
+#   useradd --system --no-create-home --shell /usr/sbin/nologin photothing
+#   install -d /etc/photothing && cp contrib/photothing.conf.example /etc/photothing/familie.conf
+#   cp contrib/photothing@.service /etc/systemd/system/ && systemctl daemon-reload
+#   systemctl enable --now photothing@familie       # reads /etc/photothing/familie.conf
+#   systemctl enable --now photothing@werk          # a second instance: /etc/photothing/werk.conf
+# The data directory of an instance is /var/lib/photothing/<name> (set `data` to that in its file).
+# Create users with:  photothing --config=/etc/photothing/familie.conf user add ton admin
+[Unit]
+Description=photothing photo gallery (%i)
+After=network.target
+ConditionPathExists=/etc/photothing/%i.conf
+
+[Service]
+Type=simple
+User=photothing
+Group=photothing
+ExecStart=/usr/local/bin/photothing --config=/etc/photothing/%i.conf serve
+Restart=on-failure
+RestartSec=2
+
+# The only place the service may write is its state directory; the photos stay read-only.
+StateDirectory=photothing/%i
+StateDirectoryMode=0700
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
