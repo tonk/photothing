@@ -1,0 +1,82 @@
+{{define "content"}}
+{{with .Data}}
+<div class="card narrow">
+  <h1>{{t "Account"}}</h1>
+  <p>{{t "Signed in as"}} <strong>{{.User.Username}}</strong> ({{t .User.Role}}).</p>
+</div>
+
+<form method="post" action="/prefs" class="card narrow">
+  <h2>{{t "Preferences"}}</h2>
+  <input type="hidden" name="next" value="/account">
+  <label>{{t "Language"}}
+    <select name="lang">{{$cur := .CurrentLang}}{{range .Languages}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{langName .}}</option>{{end}}</select>
+  </label>
+  <label>{{t "Photos per page"}}
+    <select name="page_size">{{$ps := .PageSize}}{{range .Sizes}}<option {{if eq . $ps}}selected{{end}}>{{.}}</option>{{end}}</select>
+  </label>
+  <label>{{t "Sort photos by"}}
+    <select name="sort">{{$sm := .SortMode}}{{range .SortModes}}<option value="{{.}}" {{if eq . $sm}}selected{{end}}>{{if eq . "name"}}{{t "Name (A–Z)"}}{{else if eq . "natural"}}{{t "Name (numbers in order: 2 before 10)"}}{{else if eq . "date"}}{{t "Date taken (oldest first)"}}{{else}}{{t "Date taken (newest first)"}}{{end}}</option>{{end}}</select>
+  </label>
+  <button class="button">{{t "Save"}}</button>
+</form>
+
+<form method="post" action="/account/password" class="card narrow">
+  <h2>{{t "Change password"}}</h2>
+  <input type="text" name="username" value="{{.User.Username}}" autocomplete="username" hidden>
+  <label>{{t "Current password"}} <input type="password" name="current" autocomplete="current-password" required></label>
+  <label>{{t "New password (min. 12 characters)"}} <input type="password" name="new" autocomplete="new-password" minlength="12" required></label>
+  <label>{{t "Confirm new password"}} <input type="password" name="confirm" autocomplete="new-password" minlength="12" required></label>
+  <button class="button">{{t "Change password"}}</button>
+</form>
+
+<div class="card narrow">
+  <h2>{{t "Two-factor authentication"}}</h2>
+  {{if .Codes}}
+    <h3>{{t "Recovery codes"}}</h3>
+    <p>{{t "Store these codes somewhere safe. Each one works once if you lose your authenticator. They are not shown again."}}</p>
+    <ul class="codes">{{range .Codes}}<li><code>{{.}}</code></li>{{end}}</ul>
+  {{end}}
+  {{if .User.TOTPEnabled}}
+    <p>{{t "Enabled."}} {{t "Recovery codes left: %d." .CodesLeft}}</p>
+    <form method="post" action="/account/mfa/recovery">
+      <label>{{t "Password"}} <input type="password" name="current" autocomplete="current-password" required></label>
+      <button class="button">{{t "Generate new recovery codes"}}</button>
+    </form>
+    <hr>
+    <form method="post" action="/account/mfa/disable">
+      <label>{{t "Password"}} <input type="password" name="current" autocomplete="current-password" required></label>
+      <button class="button danger">{{t "Disable"}}</button>
+    </form>
+  {{else if .QR}}
+    <p>{{t "Scan this QR code with an authenticator app, then enter the code to finish."}}</p>
+    <img class="qr" src="{{.QR}}" alt="QR" width="220" height="220">
+    <p class="muted">{{t "Or enter this key manually:"}} <code>{{.Secret}}</code></p>
+    <form method="post" action="/account/mfa/confirm">
+      <label>{{t "Code"}} <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required></label>
+      <button class="button">{{t "Enable"}}</button>
+    </form>
+  {{else}}
+    <p class="muted">{{t "Not enabled."}}</p>
+    <form method="post" action="/account/mfa/start"><button class="button">{{t "Set up"}}</button></form>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>{{t "Sessions"}}</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>{{t "Signed in"}}</th><th>{{t "Browser"}}</th><th>IP</th><th></th></tr>
+    {{range .Sessions}}
+    <tr>
+      <td>{{stamp .Created}}</td><td>{{if .UserAgent}}{{.UserAgent}}{{else}}–{{end}}</td><td>{{if .IP}}{{.IP}}{{else}}–{{end}}</td>
+      <td>{{if .Current}}<strong>{{t "This session"}}</strong>{{else}}<form method="post" action="/account/sessions/{{.Handle}}/revoke"><button class="link danger-text">{{t "Sign out"}}</button></form>{{end}}</td>
+    </tr>
+    {{end}}
+  </table>
+  </div>
+  {{if gt (len .Sessions) 1}}
+  <form method="post" action="/account/sessions/revoke-others"><button class="button">{{t "Sign out all other sessions"}}</button></form>
+  {{end}}
+</div>
+{{end}}
+{{end}}

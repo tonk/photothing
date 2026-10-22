@@ -1,0 +1,54 @@
+{{define "content"}}
+{{with .Data}}{{$p := .Photo}}
+<nav class="crumbs" aria-label="{{t "Breadcrumb"}}">
+  <a href="/">{{t "Albums"}}</a>
+  {{range .Crumbs}} / <a href="/a/{{.Path}}">{{.Name}}</a>{{end}}
+  / <span>{{$p.Filename}}</span>
+</nav>
+<div class="viewer" {{if .Prev}}data-prev="/p/{{.Prev}}"{{end}} {{if .Next}}data-next="/p/{{.Next}}"{{end}} data-up="{{.UpURL}}">
+  <div class="stage">
+    {{if .Prev}}<a class="nav prev" href="/p/{{.Prev}}" aria-label="{{t "Previous"}}">‹</a>{{end}}
+    {{if $p.IsVideo}}
+    <video controls preload="metadata" poster="/img/{{$p.ID}}/large" src="/img/{{$p.ID}}/video">{{t "Your browser cannot play this video."}}</video>
+    {{else}}
+    <img src="/img/{{$p.ID}}/large" alt="{{if $p.Caption}}{{$p.Caption}}{{else}}{{$p.Filename}}{{end}}">
+    {{end}}
+    {{if .Next}}<a class="nav next" href="/p/{{.Next}}" aria-label="{{t "Next"}}">›</a>{{end}}
+  </div>
+  <aside class="info">
+    <h2>{{if $p.Caption}}{{$p.Caption}}{{else}}{{$p.Filename}}{{end}}</h2>
+    <p class="muted">{{t "Photo %d of %d" .Index .Total}} · <a href="{{.UpURL}}">{{t "Back to album"}}</a></p>
+    {{if .Tags}}<ul class="chips">{{range .Tags}}<li><a href="/search?tag={{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+    <dl>
+      {{if $p.Caption}}<dt>{{t "File"}}</dt><dd>{{$p.Filename}}</dd>{{end}}
+      <dt>{{t "Taken"}}</dt><dd>{{stamp $p.TakenAt}}</dd>
+      <dt>{{t "Dimensions"}}</dt><dd>{{$p.Width}} × {{$p.Height}}</dd>
+      <dt>{{t "File size"}}</dt><dd>{{humanSize $p.Size}}</dd>
+      {{range $k, $v := .Info}}<dt>{{t $k}}</dt><dd>{{if eq $k "GPS"}}{{with osm $v}}<a href="{{.}}" target="_blank" rel="noopener noreferrer">{{$v}}</a>{{else}}{{$v}}{{end}}{{else}}{{$v}}{{end}}</dd>{{end}}
+    </dl>
+    {{if .CanOrig}}<p><a class="button" href="/img/{{$p.ID}}/original">{{if $p.IsVideo}}{{t "Download video"}}{{else}}{{t "Open original"}}{{end}}</a></p>{{end}}
+    {{if .CanEdit}}
+    <form method="post" action="/p/{{$p.ID}}/meta" class="side">
+      <h3>{{t "Details"}}</h3>
+      <label>{{t "Caption"}} <input name="caption" value="{{$p.Caption}}" maxlength="300"></label>
+      <label>{{t "Tags (comma separated)"}} <input name="tags" value="{{.TagsText}}"></label>
+      <button class="button">{{t "Save"}}</button>
+    </form>
+    {{if .CoverOpts}}
+    <form method="post" action="/p/{{$p.ID}}/cover" class="side">
+      <h3>{{t "Album cover"}}</h3>
+      <label>{{t "Album"}}
+        <select name="album">{{range .CoverOpts}}<option value="{{.Path}}" {{if .Selected}}selected{{end}}>{{.Path}}{{if .IsCover}} ({{t "current cover"}}){{end}}</option>{{end}}</select>
+      </label>
+      <div class="row">
+        <button class="button" name="action" value="set">{{t "Use as cover"}}</button>
+        <button class="link" name="action" value="reset">{{t "Reset to automatic"}}</button>
+      </div>
+    </form>
+    {{end}}
+    {{end}}
+  </aside>
+</div>
+<script src="/static/viewer.js?v={{v}}"></script>
+{{end}}
+{{end}}

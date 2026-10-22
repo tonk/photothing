@@ -1,0 +1,75 @@
+{{define "content"}}
+{{with .Data}}
+{{if .ResetURL}}
+<div class="card">
+  <h2>{{t "Password reset link for %s" .ResetFor}}</h2>
+  <p>{{t "Give this link to the user. It works once and expires in one hour. It is not shown again."}}</p>
+  <input class="copy" readonly value="{{.ResetURL}}" aria-label="{{t "Reset link"}}">
+</div>
+{{end}}
+<div class="card">
+  <h1>{{t "Library"}}</h1>
+  <form method="post" action="/admin/scan"><button class="button">{{t "Rescan photos"}}</button></form>
+  {{if .CanManage}}<p class="muted"><a href="/admin/access">{{t "Album access"}}</a> · <a href="/admin/audit">{{t "Audit log"}}</a></p>{{end}}
+</div>
+{{if .CanManage}}
+<div class="card">
+  <h2>{{t "Access"}}</h2>
+  <form method="post" action="/admin/public">
+    <label class="check"><input type="checkbox" name="public" value="1" {{if .PublicOn}}checked{{end}}> {{t "Allow anonymous viewing of the gallery"}}</label>
+    <button class="button">{{t "Save"}}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{t "Users"}}</h2>
+  <div class="scroll">
+  <table class="users">
+    <tr><th>{{t "Username"}}</th><th>{{t "Role"}}</th><th>MFA</th><th>{{t "Status"}}</th><th>{{t "Actions"}}</th></tr>
+    {{$self := .Self}}{{$roles := .Roles}}
+    {{range .Users}}
+    <tr>
+      <td>{{.Username}}{{if eq .ID $self}} <small>({{t "you"}})</small>{{end}}</td>
+      <td>
+        {{if eq .ID $self}}{{t .Role}}{{else}}
+        {{$cur := .Role}}
+        <form method="post" action="/admin/users/{{.ID}}/role" class="row">
+          <select name="role" aria-label="{{t "Role"}}: {{.Username}}">{{range $roles}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{t .}}</option>{{end}}</select>
+          <button class="link">{{t "Set"}}</button>
+        </form>
+        {{end}}
+      </td>
+      <td>{{if .TOTPEnabled}}{{t "on"}}{{else}}{{t "off"}}{{end}}</td>
+      <td>{{if .Disabled}}{{t "disabled"}}{{else}}{{t "active"}}{{end}}</td>
+      <td>
+        {{if ne .ID $self}}
+        <div class="row">
+          <form method="post" action="/admin/users/{{.ID}}/disable"><input type="hidden" name="disabled" value="{{if .Disabled}}0{{else}}1{{end}}"><button class="link">{{if .Disabled}}{{t "Enable"}}{{else}}{{t "Disable"}}{{end}}</button></form>
+          {{if .TOTPEnabled}}<form method="post" action="/admin/users/{{.ID}}/mfa-reset"><button class="link">{{t "Reset MFA"}}</button></form>{{end}}
+          <form method="post" action="/admin/users/{{.ID}}/reset-link"><button class="link">{{t "Reset link"}}</button></form>
+          <form method="post" action="/admin/users/{{.ID}}/delete"><button class="link danger-text">{{t "Delete"}}</button></form>
+        </div>
+        <form method="post" action="/admin/users/{{.ID}}/password" class="row">
+          <input type="password" name="password" placeholder="{{t "New password"}}" autocomplete="new-password" minlength="12" required aria-label="{{t "New password"}}: {{.Username}}">
+          <button class="link">{{t "Set password"}}</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+  </table>
+  </div>
+</div>
+
+<form method="post" action="/admin/users" class="card narrow">
+  <h2>{{t "Add user"}}</h2>
+  <label>{{t "Username"}} <input name="username" autocomplete="off" required maxlength="64"></label>
+  <label>{{t "Password (min. 12 characters)"}} <input type="password" name="password" autocomplete="new-password" minlength="12" required></label>
+  <label>{{t "Role"}}
+    <select name="role">{{range .Roles}}<option value="{{.}}" {{if eq . "viewer"}}selected{{end}}>{{t .}}</option>{{end}}</select>
+  </label>
+  <button class="button">{{t "Create user"}}</button>
+</form>
+{{end}}
+{{end}}
+{{end}}

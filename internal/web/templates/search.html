@@ -1,0 +1,24 @@
+{{define "content"}}
+{{with .Data}}
+<form class="card narrow searchbox" action="/search" method="get" role="search">
+  <label>{{t "Search"}} <input type="search" name="q" value="{{.Q}}" maxlength="100" placeholder="{{t "File name, caption, album or tag"}}" autofocus></label>
+  <button class="button">{{t "Search"}}</button>
+</form>
+{{if .Searched}}
+  <h1>{{t "Results"}}{{if .Q}}: “{{.Q}}”{{end}}{{if .Tag}} <span class="chip">#{{.Tag}}</span>{{end}}</h1>
+  {{if .Photos}}
+    {{template "grid" .Photos}}
+    {{template "pager" .Pager}}
+  {{else}}
+    <p class="muted">{{t "Nothing found."}}</p>
+  {{end}}
+{{else}}
+  <h2>{{t "Tags"}}</h2>
+  {{if .Tags}}
+  <ul class="chips big">{{range .Tags}}<li><a href="/search?tag={{.Tag}}">{{.Tag}} <small>{{.Count}}</small></a></li>{{end}}</ul>
+  {{else}}
+  <p class="muted">{{t "No tags yet."}}</p>
+  {{end}}
+{{end}}
+{{end}}
+{{end}}

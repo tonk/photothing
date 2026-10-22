@@ -1,0 +1,10 @@
+{{define "content"}}
+<form method="post" action="/login" class="card narrow">
+  <div class="hero">{{template "logo"}}</div>
+  <h1>{{t "Sign in"}}</h1>
+  <input type="hidden" name="next" value="{{.Data.Next}}">
+  <label>{{t "Username"}} <input name="username" autocomplete="username" required autofocus></label>
+  <label>{{t "Password"}} <input type="password" name="password" autocomplete="current-password" required></label>
+  <button class="button">{{t "Sign in"}}</button>
+</form>
+{{end}}

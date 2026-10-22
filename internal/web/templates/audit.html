@@ -1,0 +1,25 @@
+{{define "content"}}
+{{with .Data}}
+<div class="card">
+  <h1>{{t "Audit log"}}</h1>
+  <p class="muted"><a href="/admin">‹ {{t "Admin"}}</a></p>
+  <div class="scroll">
+  <table class="audit">
+    <tr><th>{{t "Time"}}</th><th>{{t "User"}}</th><th>{{t "Action"}}</th><th>{{t "Target"}}</th><th>{{t "Details"}}</th><th>IP</th></tr>
+    {{range .Entries}}
+    <tr><td>{{stamp .Time}}</td><td>{{.Actor}}</td><td><code>{{.Action}}</code></td><td>{{.Target}}</td><td>{{.Detail}}</td><td>{{.IP}}</td></tr>
+    {{else}}
+    <tr><td colspan="6" class="muted">{{t "Nothing recorded yet."}}</td></tr>
+    {{end}}
+  </table>
+  </div>
+  {{with .Pager}}{{if gt .Pages 1}}
+  <div class="pager"><nav aria-label="{{t "Pages"}}">
+    {{if .Prev}}<a href="{{.Prev}}" rel="prev">‹ {{t "Previous"}}</a>{{end}}
+    {{range .Links}}{{if eq .N 0}}<span class="gap">…</span>{{else if .Current}}<strong aria-current="page">{{.N}}</strong>{{else}}<a href="{{.URL}}">{{.N}}</a>{{end}}{{end}}
+    {{if .Next}}<a href="{{.Next}}" rel="next">{{t "Next"}} ›</a>{{end}}
+  </nav></div>
+  {{end}}{{end}}
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,38 @@
+{{define "content"}}
+{{with .Data}}
+<div class="card">
+  <h1>{{t "Album access"}}</h1>
+  <p class="muted"><a href="/admin">‹ {{t "Admin"}}</a></p>
+  <p>{{t "A restricted album, and everything below it, can only be seen by administrators and the users you select. Anonymous visitors never see it."}}</p>
+</div>
+
+{{$members := .Members}}
+{{range .Rules}}
+{{$allowed := .Allowed}}
+<form method="post" action="/admin/access" class="card">
+  <h2>{{.Dir}}</h2>
+  <input type="hidden" name="dir" value="{{.Dir}}">
+  {{if $members}}
+  <ul class="checks">{{range $members}}<li><label class="check"><input type="checkbox" name="user" value="{{.ID}}" {{if index $allowed .ID}}checked{{end}}> {{.Username}} <small>({{t .Role}})</small></label></li>{{end}}</ul>
+  {{else}}<p class="muted">{{t "There are no other users yet."}}</p>{{end}}
+  <div class="row">
+    <button class="button">{{t "Save"}}</button>
+    <button class="link danger-text" formaction="/admin/access/delete">{{t "Remove restriction"}}</button>
+  </div>
+</form>
+{{end}}
+
+<form method="post" action="/admin/access" class="card narrow">
+  <h2>{{t "Restrict an album"}}</h2>
+  {{if .Dirs}}
+  <label>{{t "Album"}}
+    <select name="dir" required>{{range .Dirs}}<option>{{.}}</option>{{end}}</select>
+  </label>
+  {{if $members}}
+  <ul class="checks">{{range $members}}<li><label class="check"><input type="checkbox" name="user" value="{{.ID}}"> {{.Username}} <small>({{t .Role}})</small></label></li>{{end}}</ul>
+  {{end}}
+  <button class="button">{{t "Restrict"}}</button>
+  {{else}}<p class="muted">{{t "No albums to restrict."}}</p>{{end}}
+</form>
+{{end}}
+{{end}}

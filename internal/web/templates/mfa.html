@@ -1,0 +1,10 @@
+{{define "content"}}
+<form method="post" action="/login/mfa" class="card narrow">
+  <div class="hero">{{template "logo"}}</div>
+  <h1>{{t "Two-factor authentication"}}</h1>
+  <p class="muted">{{t "Enter the 6-digit code from your authenticator app, or one of your recovery codes."}}</p>
+  <input type="hidden" name="next" value="{{.Data.Next}}">
+  <label>{{t "Code"}} <input name="code" autocomplete="one-time-code" maxlength="16" required autofocus></label>
+  <button class="button">{{t "Verify"}}</button>
+</form>
+{{end}}

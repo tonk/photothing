@@ -1,0 +1,20 @@
+{{define "content"}}
+{{with .Data}}
+<nav class="crumbs" aria-label="{{t "Breadcrumb"}}">
+  <a href="/">{{t "Albums"}}</a>
+  {{range .Crumbs}} / <a href="/a/{{.Path}}">{{.Name}}</a>{{end}}
+</nav>
+{{if .SubAlbums}}
+<ul class="grid albums">
+  {{range .SubAlbums}}
+  <li><a href="/a/{{.Path}}"><img loading="lazy" src="/img/{{.Cover}}/thumb" alt=""><span class="cap">{{.Name}} <small>{{.Count}}</small></span></a></li>
+  {{end}}
+</ul>
+{{end}}
+{{if .Photos}}
+{{template "grid" .Photos}}
+{{end}}
+{{template "pager" .Pager}}
+{{if and (not .SubAlbums) (not .Photos)}}<p class="muted">{{t "No photos yet. An editor or admin can run a scan from the Admin page."}}</p>{{end}}
+{{end}}
+{{end}}

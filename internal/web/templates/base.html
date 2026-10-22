@@ -1,0 +1,71 @@
+{{define "logo"}}<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bg" x="2" y="2" width="60" height="60" rx="15"/><circle class="fg" cx="44" cy="21" r="6" stroke="none"/><g stroke-width="3" stroke-linejoin="round"><path class="fg" d="M26 50 L41 30 L56 50 Z" opacity=".6"/><path class="fg" d="M8 50 L24 25 L40 50 Z"/></g></svg>{{end}}
+
+{{define "grid"}}<ul class="grid">
+  {{range .}}<li{{if .IsVideo}} class="video"{{end}}><a href="/p/{{.ID}}"{{if .Caption}} title="{{.Caption}}"{{end}}><img loading="lazy" src="/img/{{.ID}}/thumb" width="360" height="360" alt="{{if .Caption}}{{.Caption}}{{else}}{{.Filename}}{{end}}">{{if .IsVideo}}<span class="play" aria-hidden="true">▶</span>{{end}}</a></li>
+  {{end}}
+</ul>{{end}}
+
+{{define "pager"}}{{with .Pager}}{{if or (gt .Total 0) $.Can}}
+<div class="pager">
+  {{if gt .Pages 1}}
+  <nav aria-label="{{t "Pages"}}">
+    {{if .Prev}}<a href="{{.Prev}}" rel="prev">‹ {{t "Previous"}}</a>{{end}}
+    {{range .Links}}{{if eq .N 0}}<span class="gap">…</span>{{else if .Current}}<strong aria-current="page">{{.N}}</strong>{{else}}<a href="{{.URL}}">{{.N}}</a>{{end}}{{end}}
+    {{if .Next}}<a href="{{.Next}}" rel="next">{{t "Next"}} ›</a>{{end}}
+  </nav>
+  {{end}}
+  <span class="muted">{{t "%d photos" .Total}}</span>
+  {{if $.Can}}
+  <form method="post" action="/prefs" class="pagesize">
+    <input type="hidden" name="next" value="{{$.Path}}">
+    <label>{{t "Per page"}}
+      <select name="page_size" data-autosubmit>{{range $.Sizes}}<option {{if eq . $.Size}}selected{{end}}>{{.}}</option>{{end}}</select>
+    </label>
+    <button class="link">{{t "Apply"}}</button>
+  </form>
+  {{end}}
+</div>
+{{end}}{{end}}{{end}}
+
+{{define "base"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · photothing</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{v}}">
+<script src="/static/theme.js?v={{v}}"></script>
+<script src="/static/prefs.js?v={{v}}" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">{{template "logo"}}<span>photothing</span></a>
+  <nav>
+    {{if or .User .Public}}
+    <form class="search" action="/search" method="get" role="search">
+      <input type="search" name="q" placeholder="{{t "Search"}}" aria-label="{{t "Search"}}" maxlength="100">
+    </form>
+    {{end}}
+    {{if .User}}
+      <a href="/">{{t "Albums"}}</a>
+      {{if or (eq .User.Role "admin") (eq .User.Role "editor")}}<a href="/admin">{{t "Admin"}}</a>{{end}}
+      <a href="/account">{{.User.Username}}</a>
+      <form method="post" action="/logout" class="inline"><button class="link">{{t "Sign out"}}</button></form>
+    {{else}}
+      <a href="/login">{{t "Sign in"}}</a>
+    {{end}}
+    <form method="post" action="/prefs" class="langs inline" aria-label="{{t "Language"}}">
+      <input type="hidden" name="next" value="{{.Path}}">
+      {{range .Langs}}<button name="lang" value="{{.}}" class="link{{if eq . $.Lang}} on{{end}}"{{if eq . $.Lang}} aria-current="true"{{end}} title="{{langName .}}">{{upper .}}</button>{{end}}
+    </form>
+    <button type="button" class="theme" data-theme-toggle data-l-system="{{t "system"}}" data-l-light="{{t "light"}}" data-l-dark="{{t "dark"}}" title="{{t "Switch theme"}}">{{t "Theme"}}: <span data-theme-label>system</span></button>
+  </nav>
+</header>
+<main>
+{{if .Flash}}<p class="flash" role="status">{{.Flash}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}
