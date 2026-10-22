@@ -107,6 +107,7 @@ func readExif(r io.Reader) exifMeta {
 		case "Orientation":
 			if v, ok := t.Value.([]uint16); ok && len(v) > 0 {
 				m.Orientation = int(v[0])
+				m.enum(LabelOrientation, orientations, m.Orientation)
 			}
 		case "Flash":
 			if v, ok := firstUint16(t.Value); ok {

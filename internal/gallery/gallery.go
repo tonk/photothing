@@ -33,7 +33,7 @@ import (
 // metaVersion numbers what is read from a file into the database (dimensions, EXIF fields, ...). When
 // a release reads more, it raises this number and the next scan reads every file again, once, so
 // existing photos get the new details without anybody touching their files.
-const metaVersion = 2
+const metaVersion = 3
 
 const metaVersionKey = "meta_version"
 

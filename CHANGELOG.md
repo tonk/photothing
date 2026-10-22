@@ -41,7 +41,7 @@ in the code that is used). Fixed before release:
 - Gallery: the directories under the photo directory are albums, nested to any depth, shown as a grid
   with a cover per album (automatic, or chosen by an editor). Photo page with the full photo, previous
   and next, and keyboard navigation. Photos are only ever read.
-- Photo information: camera, lens, focal length (and 35 mm equivalent), aperture, exposure time, ISO,
+- Photo information: orientation (stored upright, rotated or mirrored, from the EXIF tag), camera, lens, focal length (and 35 mm equivalent), aperture, exposure time, ISO,
   exposure compensation, exposure program and mode, metering, flash, white balance, scene type, colour
   space, software, artist, copyright, description, and GPS position, altitude and direction. GPS is shown
   only to users who may download originals.

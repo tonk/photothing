@@ -744,8 +744,9 @@ func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
 	e.scan()
 	p, _ := e.st.PhotoByID(e.photoID("i.jpg"))
 	p.Exif = map[string]string{
-		"Software": "Auto", // free text that happens to equal a translated word: must stay as it is
-		"Flash":    "Fired", "White balance": "Auto", "Metering mode": "Center-weighted",
+		"Orientation": "Rotated 90° clockwise",
+		"Software":    "Auto", // free text that happens to equal a translated word: must stay as it is
+		"Flash":       "Fired", "White balance": "Auto", "Metering mode": "Center-weighted",
 		"Exposure": "1/250 s", "Camera model": "Shutter 9000", "Camera make": "ACME", "Aperture": "f/2.8",
 		"GPS": "52.37000, 4.89000", "GPS altitude": "12 m", "GPS direction": "270°",
 		"Old field": "kept at the end", // stored by another version: listed last
@@ -762,7 +763,7 @@ func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
 	}
 	ed := e.login("ed")
 	got := labels(ed.mustGet(page))
-	want := []string{"File size", "Camera make", "Camera model", "Aperture", "Exposure", "Metering mode", "Flash", "White balance",
+	want := []string{"File size", "Orientation", "Camera make", "Camera model", "Aperture", "Exposure", "Metering mode", "Flash", "White balance",
 		"Software", "GPS", "GPS altitude", "GPS direction", "Old field"}
 	if !strings.Contains(strings.Join(got, "|"), strings.Join(want[1:], "|")) {
 		t.Errorf("order is\n  %v\nwant it to contain\n  %v", got, want[1:])
@@ -771,7 +772,7 @@ func TestPhotoInformationOrderTranslationAndPrivacy(t *testing.T) {
 	// Dutch: labels and coded values are translated, free text is not
 	ed.post("/prefs", url.Values{"lang": {"nl"}, "next": {"/"}})
 	nlPage := ed.mustGet(page)
-	for _, s := range []string{"<dt>Cameramerk</dt>", "<dt>Flits</dt><dd>Geflitst</dd>", "<dt>Witbalans</dt><dd>Automatisch</dd>",
+	for _, s := range []string{"<dt>Oriëntatie</dt><dd>90° met de klok mee gedraaid</dd>", "<dt>Cameramerk</dt>", "<dt>Flits</dt><dd>Geflitst</dd>", "<dt>Witbalans</dt><dd>Automatisch</dd>",
 		"<dt>Lichtmeting</dt><dd>Centrumgericht</dd>", "<dt>Software</dt><dd>Auto</dd>", "<dt>GPS-hoogte</dt><dd>12 m</dd>"} {
 		if !strings.Contains(nlPage, s) {
 			t.Errorf("Dutch page lacks %s", s)

@@ -111,7 +111,8 @@ func decodableJPEGWithExif(t *testing.T, w, h int, belowSea bool) []byte {
 func TestReadExif(t *testing.T) {
 	m := readExif(bytes.NewReader(jpegWithExif(t, false)))
 	want := map[string]string{
-		LabelMake: "ACME", LabelModel: "Shutter 9000",
+		LabelOrientation: "Rotated 90° clockwise",
+		LabelMake:        "ACME", LabelModel: "Shutter 9000",
 		LabelExposure: "1/250 s", LabelAperture: "f/2.8", LabelFocalLength: "35 mm", LabelFocal35: "52 mm", LabelISO: "200",
 		LabelExposureComp: "-0.7 EV", LabelProgram: "Aperture priority", LabelExposureMode: "Auto", LabelMetering: "Pattern",
 		LabelFlash: "Fired", LabelWhiteBalance: "Manual", LabelScene: "Night", LabelColorSpace: "sRGB",
@@ -145,6 +146,54 @@ func TestReadExif(t *testing.T) {
 			t.Errorf("%q is not in ExifOrder, so it would be listed last and untranslated", k)
 		}
 	}
+}
+
+// All eight orientations of the EXIF tag, as the photo page words them. The tag says how the stored pixels
+// must be turned to show the photo upright, so a phone held upright writes 6 ("rotated 90° clockwise").
+func TestOrientationTexts(t *testing.T) {
+	want := map[int]string{
+		1: "Normal", 2: "Mirrored horizontally", 3: "Rotated 180°", 4: "Mirrored vertically",
+		5: "Mirrored horizontally, rotated 270° clockwise", 6: "Rotated 90° clockwise",
+		7: "Mirrored horizontally, rotated 90° clockwise", 8: "Rotated 270° clockwise",
+	}
+	for code, text := range want {
+		var m exifMeta
+		m.Display = map[string]string{}
+		m.enum(LabelOrientation, orientations, code)
+		if m.Display[LabelOrientation] != text {
+			t.Errorf("orientation %d: %q, want %q", code, m.Display[LabelOrientation], text)
+		}
+	}
+	for _, code := range []int{0, 9, 255} { // not valid values: nothing is shown
+		var m exifMeta
+		m.Display = map[string]string{}
+		m.enum(LabelOrientation, orientations, code)
+		if len(m.Display) != 0 {
+			t.Errorf("orientation %d produced %v", code, m.Display)
+		}
+	}
+	// the dimensions on the page are those of the upright photo: 5 to 8 swap width and height
+	for code := 1; code <= 8; code++ {
+		swapped := code >= 5
+		m := readExif(bytes.NewReader(jpegWithOrientation(t, code)))
+		if (m.Orientation >= 5 && m.Orientation <= 8) != swapped || m.Orientation != code {
+			t.Errorf("orientation %d read as %d", code, m.Orientation)
+		}
+	}
+}
+
+func jpegWithOrientation(t *testing.T, code int) []byte {
+	t.Helper()
+	im, _ := exifcommon.NewIfdMappingWithStandard()
+	root := exif.NewIfdBuilder(im, exif.NewTagIndex(), exifcommon.IfdStandardIfdIdentity, exifcommon.EncodeDefaultByteOrder)
+	if err := root.AddStandardWithName("Orientation", []uint16{uint16(code)}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := exif.NewIfdByteEncoder().EncodeToExif(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(append([]byte{0xFF, 0xD8}, app1(raw)...), 0xFF, 0xD9)
 }
 
 func TestAltitudeBelowSeaLevel(t *testing.T) {

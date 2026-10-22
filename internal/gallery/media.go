@@ -197,7 +197,7 @@ func (l *Library) exiftoolMeta(ctx context.Context, abs string) exifMeta {
 	b, err := run(ctx, 30*time.Second, l.Tools.Exiftool, "-json", "-n", "-DateTimeOriginal", "-Make", "-Model", "-LensModel",
 		"-ExposureTime", "-FNumber", "-FocalLength", "-FocalLengthIn35mmFormat", "-ISO", "-GPSLatitude", "-GPSLongitude",
 		"-GPSAltitude", "-GPSImgDirection", "-Flash", "-WhiteBalance", "-MeteringMode", "-ExposureProgram", "-ExposureMode",
-		"-SceneCaptureType", "-ColorSpace", "-ExposureCompensation", "-Software", "-Artist", "-Copyright", "-ImageDescription", abs)
+		"-SceneCaptureType", "-ColorSpace", "-Orientation", "-ExposureCompensation", "-Software", "-Artist", "-Copyright", "-ImageDescription", abs)
 	if err != nil {
 		return m
 	}
@@ -248,7 +248,7 @@ func (l *Library) exiftoolMeta(ctx context.Context, abs string) exifMeta {
 	for _, e := range []struct {
 		key, label string
 		table      map[int]string
-	}{{"WhiteBalance", LabelWhiteBalance, whiteBalances}, {"MeteringMode", LabelMetering, meteringModes},
+	}{{"Orientation", LabelOrientation, orientations}, {"WhiteBalance", LabelWhiteBalance, whiteBalances}, {"MeteringMode", LabelMetering, meteringModes},
 		{"ExposureProgram", LabelProgram, programs}, {"ExposureMode", LabelExposureMode, exposureModes},
 		{"SceneCaptureType", LabelScene, sceneTypes}, {"ColorSpace", LabelColorSpace, colorSpaces}} {
 		if f, ok := num(e.key); ok {

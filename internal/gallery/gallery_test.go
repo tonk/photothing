@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -336,7 +337,7 @@ func TestMetadataIsReadAgainOnceAfterAnUpgrade(t *testing.T) {
 	if got[LabelFlash] != "Fired" || got[LabelGPSAltitude] != "12 m" || got[LabelFocal35] != "52 mm" {
 		t.Errorf("new fields were not filled in: %v", got)
 	}
-	if v := e.store.Setting(metaVersionKey); v != "2" {
+	if v := e.store.Setting(metaVersionKey); v != strconv.Itoa(metaVersion) {
 		t.Errorf("version recorded as %q", v)
 	}
 	if r := e.scan(); r.Updated != 0 {

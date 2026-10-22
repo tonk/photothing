@@ -13,6 +13,7 @@ import (
 // are English; the web layer translates them. They are defined here once, so that the readers, the
 // display order, the privacy rules and the translations cannot drift apart.
 const (
+	LabelOrientation  = "Orientation"
 	LabelMake         = "Camera make"
 	LabelModel        = "Camera model"
 	LabelLens         = "Lens"
@@ -42,6 +43,7 @@ const (
 
 // ExifOrder is the order in which the fields are shown.
 var ExifOrder = []string{
+	LabelOrientation,
 	LabelMake, LabelModel, LabelLens,
 	LabelFocalLength, LabelFocal35, LabelAperture, LabelExposure, LabelISO, LabelExposureComp,
 	LabelProgram, LabelExposureMode, LabelMetering, LabelFlash, LabelWhiteBalance, LabelScene, LabelColorSpace,
@@ -55,6 +57,20 @@ var ExifOrder = []string{
 var ExifSensitive = map[string]bool{LabelGPS: true, LabelGPSAltitude: true, LabelGPSDirection: true}
 
 // Value tables of the fields whose EXIF value is a code (EXIF 2.32, tables for each tag).
+// orientations are the eight values of the EXIF Orientation tag, described by what has to be done to the
+// stored pixels to show the photo upright. Photos and thumbnails are shown upright (the program applies this),
+// so this tells whether the file is stored sideways, not how it looks.
+var orientations = map[int]string{
+	1: "Normal",
+	2: "Mirrored horizontally",
+	3: "Rotated 180°",
+	4: "Mirrored vertically",
+	5: "Mirrored horizontally, rotated 270° clockwise",
+	6: "Rotated 90° clockwise",
+	7: "Mirrored horizontally, rotated 90° clockwise",
+	8: "Rotated 270° clockwise",
+}
+
 var (
 	whiteBalances = map[int]string{0: "Auto", 1: "Manual"}
 	meteringModes = map[int]string{1: "Average", 2: "Center-weighted", 3: "Spot", 4: "Multi-spot", 5: "Pattern", 6: "Partial"}
@@ -90,6 +106,7 @@ func ExifValueTexts() map[string][]string {
 		return out
 	}
 	return map[string][]string{
+		LabelOrientation:  of(orientations),
 		LabelFlash:        {flashFired, flashNotFired},
 		LabelWhiteBalance: of(whiteBalances),
 		LabelMetering:     of(meteringModes),
