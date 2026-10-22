@@ -477,7 +477,7 @@ func TestLoginThrottleDoesNotLockOutTheRealUser(t *testing.T) {
 		t.Error("vera, signing in from her own IP, must not be locked out by someone else's guesses")
 	}
 	// a distributed attack still hits the loose per-user limit
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 200; i++ {
 		s.failed(fmt.Sprintf("192.0.2.%d", i), "ed")
 	}
 	if !s.throttled("198.51.100.4", "ed") {

@@ -23,29 +23,31 @@ type fileType struct {
 	Native bool   // decoded in pure Go; otherwise an external tool is needed
 	Tool   string // "heif", "raw" or "video" when !Native
 	Mime   string
-	Inline bool // safe to display inline in a browser
+	Inline bool   // safe to display inline in a browser
+	Demux  string // video: the only container format ffmpeg may use for this extension
+	Mux    string // video: the container format of the copy shown to viewers
 }
 
 var fileTypes = map[string]fileType{
-	".jpg":  {"image", true, "", "image/jpeg", true},
-	".jpeg": {"image", true, "", "image/jpeg", true},
-	".png":  {"image", true, "", "image/png", true},
-	".gif":  {"image", true, "", "image/gif", true},
-	".webp": {"image", true, "", "image/webp", true},
-	".heic": {"image", false, "heif", "image/heic", false},
-	".heif": {"image", false, "heif", "image/heif", false},
-	".dng":  {"image", false, "raw", "application/octet-stream", false},
-	".cr2":  {"image", false, "raw", "application/octet-stream", false},
-	".cr3":  {"image", false, "raw", "application/octet-stream", false},
-	".nef":  {"image", false, "raw", "application/octet-stream", false},
-	".arw":  {"image", false, "raw", "application/octet-stream", false},
-	".orf":  {"image", false, "raw", "application/octet-stream", false},
-	".rw2":  {"image", false, "raw", "application/octet-stream", false},
-	".raf":  {"image", false, "raw", "application/octet-stream", false},
-	".mp4":  {"video", false, "video", "video/mp4", true},
-	".m4v":  {"video", false, "video", "video/mp4", true},
-	".webm": {"video", false, "video", "video/webm", true},
-	".mov":  {"video", false, "video", "video/quicktime", true},
+	".jpg":  {"image", true, "", "image/jpeg", true, "", ""},
+	".jpeg": {"image", true, "", "image/jpeg", true, "", ""},
+	".png":  {"image", true, "", "image/png", true, "", ""},
+	".gif":  {"image", true, "", "image/gif", true, "", ""},
+	".webp": {"image", true, "", "image/webp", true, "", ""},
+	".heic": {"image", false, "heif", "image/heic", false, "", ""},
+	".heif": {"image", false, "heif", "image/heif", false, "", ""},
+	".dng":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".cr2":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".cr3":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".nef":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".arw":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".orf":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".rw2":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".raf":  {"image", false, "raw", "application/octet-stream", false, "", ""},
+	".mp4":  {"video", false, "video", "video/mp4", true, "mov", "mp4"},
+	".m4v":  {"video", false, "video", "video/mp4", true, "mov", "mp4"},
+	".webm": {"video", false, "video", "video/webm", true, "matroska", "webm"},
+	".mov":  {"video", false, "video", "video/quicktime", true, "mov", "mov"},
 }
 
 func typeOf(name string) (fileType, bool) {
@@ -63,12 +65,27 @@ func MimeFor(name string) (mime string, inline bool) {
 
 // Tools are the optional external programs that add format support.
 type Tools struct {
-	FFmpeg, FFprobe, Heif, Exiftool string // full paths; empty when not installed
+	FFmpeg, FFprobe, Heif, Exiftool string // full paths; empty when not installed (or refused, see Warnings)
+	Warnings                        []string
 }
+
+// minExiftool is the first exiftool release without CVE-2021-22204, which let a crafted DjVu file run
+// commands. exiftool recognises files by their content, so a file named photo.dng can be one.
+const minExiftool = 12.24
 
 func DetectTools() Tools {
 	find := func(n string) string { p, _ := exec.LookPath(n); return p }
-	return Tools{FFmpeg: find("ffmpeg"), FFprobe: find("ffprobe"), Heif: find("heif-convert"), Exiftool: find("exiftool")}
+	t := Tools{FFmpeg: find("ffmpeg"), FFprobe: find("ffprobe"), Heif: find("heif-convert"), Exiftool: find("exiftool")}
+	if t.Exiftool != "" {
+		out, err := run(context.Background(), 5*time.Second, t.Exiftool, "-ver")
+		v, perr := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+		if err != nil || perr != nil || v < minExiftool {
+			t.Warnings = append(t.Warnings, fmt.Sprintf("exiftool %q is older than %.2f (or unreadable) and has a known remote code execution bug: not used, RAW and HEIC details are unavailable",
+				strings.TrimSpace(string(out)), minExiftool))
+			t.Exiftool = ""
+		}
+	}
+	return t
 }
 
 // Has reports whether the tool group ("heif", "raw", "video") is usable.
@@ -153,8 +170,9 @@ func (l *Library) toJPEG(ctx context.Context, abs string, ft fileType) (jpg stri
 	case "video":
 		// Try one second in (skips black first frames); fall back to the first frame for very short clips.
 		for _, ss := range []string{"1", "0"} {
-			_, err = run(ctx, 60*time.Second, l.Tools.FFmpeg, "-nostdin", "-loglevel", "error", "-ss", ss, "-i", abs,
-				"-frames:v", "1", "-an", "-y", out)
+			args := append([]string{"-nostdin", "-loglevel", "error"}, ffmpegInput(ft.Demux)...)
+			args = append(args, "-ss", ss, "-i", abs, "-frames:v", "1", "-an", "-y", out)
+			_, err = run(ctx, 60*time.Second, l.Tools.FFmpeg, args...)
 			if st, serr := os.Stat(out); err == nil && serr == nil && st.Size() > 0 {
 				break
 			}
@@ -258,9 +276,18 @@ type videoInfo struct {
 	Created  time.Time
 }
 
-func (l *Library) probeVideo(ctx context.Context, abs string) (videoInfo, error) {
+// ffmpeg picks the format of a file from its content, not its name, and some formats (playlists,
+// concat lists) point at other files and URLs. Photos come from a directory that other people may write
+// to, so ffmpeg is held to local files and to the one container format the extension promises.
+func ffmpegInput(demux string) []string {
+	return []string{"-protocol_whitelist", "file", "-f", demux}
+}
+
+func (l *Library) probeVideo(ctx context.Context, abs, demux string) (videoInfo, error) {
 	var vi videoInfo
-	b, err := run(ctx, 30*time.Second, l.Tools.FFprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", abs)
+	args := append([]string{"-v", "error"}, ffmpegInput(demux)...)
+	args = append(args, "-print_format", "json", "-show_format", "-show_streams", abs)
+	b, err := run(ctx, 30*time.Second, l.Tools.FFprobe, args...)
 	if err != nil {
 		return vi, err
 	}

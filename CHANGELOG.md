@@ -16,6 +16,27 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 First version.
 
+### Security
+First review of the code, by the author and by an independent reviewer, with `govulncheck` (no vulnerabilities
+in the code that is used). Fixed before release:
+- The page to go to after signing in could be made to leave the site with a control character in it
+  (`/<tab>/evil.example`, which browsers read as `//evil.example`).
+- A video was sent to every viewer as the original file, including the location in its metadata, while the
+  photo page hid it. Viewers now get a copy without metadata.
+- The audit log could be filled by anybody sending failed sign-ins, and held whatever was typed in the name
+  field (people type passwords there). Failed sign-ins are bounded and kept apart from the real history, and
+  only existing user names are recorded.
+- Second-factor codes could be guessed from many addresses (60 tries per 15 minutes in total): now 10 per
+  30 minutes per user. IPv6 clients are limited per /64 block, and the limiter's memory is bounded.
+- A small file could describe an image of 100 megapixels, costing more than half a gigabyte to thumbnail, many
+  at once. Decoding now works within a pixel budget.
+- Recovery codes are stored as an HMAC under a key from `secret.key` instead of an unsalted hash.
+- An anonymous visitor could tell which photo numbers exist.
+- ffmpeg is held to local files and to the container format the extension promises; exiftool older than 12.24
+  (code execution through a crafted file) is refused; external tools only get regular files.
+- The systemd units run with no capabilities and a system-call filter (`systemd-analyze security`: 5.4 to 1.3).
+- Release workflow: actions pinned to a commit, Dependabot added; `SECURITY.md` describes the model.
+
 ### Added
 - Gallery: the directories under the photo directory are albums, nested to any depth, shown as a grid
   with a cover per album (automatic, or chosen by an editor). Photo page with the full photo, previous

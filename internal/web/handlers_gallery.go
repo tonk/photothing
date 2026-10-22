@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -187,14 +188,23 @@ func (s *Server) infoRows(r *http.Request, p *store.Photo, mayDownload bool) []i
 
 // loadPhoto fetches the photo of the request and enforces album access.
 func (s *Server) loadPhoto(w http.ResponseWriter, r *http.Request) *store.Photo {
+	// An anonymous visitor (public mode) gets the same answer for a photo that does not exist and for one they
+	// may not see, so photo numbers cannot be used to find out what exists.
+	notFound := func() {
+		if s.current(r) == nil {
+			s.redirectToLogin(w, r)
+			return
+		}
+		s.fail(w, r, http.StatusNotFound, "Photo not found.")
+	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		s.fail(w, r, http.StatusNotFound, "Photo not found.")
+		notFound()
 		return nil
 	}
 	p, err := s.store.PhotoByID(id)
 	if errors.Is(err, store.ErrNotFound) {
-		s.fail(w, r, http.StatusNotFound, "Photo not found.")
+		notFound()
 		return nil
 	}
 	if err != nil {
@@ -207,11 +217,7 @@ func (s *Server) loadPhoto(w http.ResponseWriter, r *http.Request) *store.Photo 
 		return nil
 	}
 	if !acc.allowed(s.current(r), p.Dir) {
-		if s.current(r) == nil {
-			s.redirectToLogin(w, r)
-		} else {
-			s.fail(w, r, http.StatusNotFound, "Photo not found.")
-		}
+		notFound()
 		return nil
 	}
 	return p
@@ -368,30 +374,39 @@ func (s *Server) handleImage(w http.ResponseWriter, r *http.Request) {
 	switch kind {
 	case "original", "video":
 		u := s.current(r)
+		mayDownload := u != nil && auth.Can(u.Role, auth.PermOriginal)
 		if kind == "video" && !p.IsVideo() {
 			s.fail(w, r, http.StatusNotFound, "Unknown image size.")
 			return
 		}
-		// Videos are streamed to viewers (a browser has to download them to play them); other
-		// originals need the download permission.
-		if kind == "original" && (u == nil || !auth.Can(u.Role, auth.PermOriginal)) {
+		if kind == "original" && !mayDownload {
 			s.fail(w, r, http.StatusForbidden, "You do not have permission to download originals.")
 			return
 		}
-		f, err := s.lib.OpenOriginal(p.Path)
+		// What the player gets: the file itself for users who may download originals, for everybody else a
+		// copy without metadata (a video's location and camera data live in the file, not on the page).
+		if kind == "original" || mayDownload {
+			f, err := s.lib.OpenOriginal(p.Path)
+			if err != nil {
+				s.fail(w, r, http.StatusNotFound, "File not found.")
+				return
+			}
+			defer f.Close()
+			s.serveMedia(w, r, p, f)
+			return
+		}
+		name, err := s.lib.WebVideo(r.Context(), p)
 		if err != nil {
-			s.fail(w, r, http.StatusNotFound, "File not found.")
+			s.serverError(w, r, err)
+			return
+		}
+		f, err := os.Open(name)
+		if err != nil {
+			s.serverError(w, r, err)
 			return
 		}
 		defer f.Close()
-		ctype, inline := gallery.MimeFor(p.Filename)
-		disp := "attachment"
-		if inline {
-			disp = "inline"
-		}
-		w.Header().Set("Content-Type", ctype)
-		w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": p.Filename}))
-		http.ServeContent(w, r, p.Filename, p.TakenAt, f)
+		s.serveMedia(w, r, p, f)
 	case "thumb", "large":
 		out, err := s.lib.Variant(r.Context(), p, kind)
 		if err != nil {
@@ -402,6 +417,18 @@ func (s *Server) handleImage(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.fail(w, r, http.StatusNotFound, "Unknown image size.")
 	}
+}
+
+// serveMedia sends a photo or video file with the right type; browsers may show images and videos inline.
+func (s *Server) serveMedia(w http.ResponseWriter, r *http.Request, p *store.Photo, f *os.File) {
+	ctype, inline := gallery.MimeFor(p.Filename)
+	disp := "attachment"
+	if inline {
+		disp = "inline"
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": p.Filename}))
+	http.ServeContent(w, r, p.Filename, p.TakenAt, f)
 }
 
 // ---- search and tags ----

@@ -5,6 +5,7 @@ package gallery
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -12,6 +13,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -379,5 +382,119 @@ func TestExiftoolMetadata(t *testing.T) {
 	}
 	if !strings.Contains(got[LabelCopyright], "Ton Kersten") {
 		t.Errorf("copyright = %q", got[LabelCopyright])
+	}
+}
+
+// ffmpeg recognises files by content. A "video" that is really a playlist pointing at other files or URLs
+// must not be followed: it is refused because it is not the MP4 its name claims to be.
+func TestPlaylistDisguisedAsVideoIsRefused(t *testing.T) {
+	need(t, "ffprobe")
+	need(t, "ffmpeg")
+	e := newEnv(t)
+	playlist := "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:1,\nhttp://127.0.0.1:9/never.ts\n#EXT-X-ENDLIST\n"
+	e.writeBytes("evil.mp4", []byte(playlist), time.Now().Add(-time.Hour))
+	e.writeBytes("evil.webm", []byte(playlist), time.Now().Add(-time.Hour))
+	if r := e.scan(); r.Added != 0 || r.Skipped != 2 {
+		t.Errorf("a playlist named .mp4/.webm was accepted: %s", r)
+	}
+}
+
+func TestToolsGetOnlyRegularFiles(t *testing.T) {
+	e := newEnv(t)
+	e.writeBytes("real.bin", []byte("data"), time.Now())
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	os.WriteFile(outside, []byte("secret"), 0o600)
+	if err := os.Symlink(outside, filepath.Join(e.root, "link.mp4")); err != nil {
+		t.Skip("cannot create symlinks here")
+	}
+	os.Symlink(".", filepath.Join(e.root, "dirlink"))
+	if p, err := e.lib.abs("real.bin"); err != nil || p != filepath.Join(e.lib.RootPath, "real.bin") {
+		t.Errorf("regular file: %q %v", p, err)
+	}
+	for _, rel := range []string{"link.mp4", "dirlink", "missing", "../outside"} {
+		if p, err := e.lib.abs(rel); err == nil {
+			t.Errorf("abs(%q) = %q, want an error", rel, p)
+		}
+	}
+}
+
+func TestOldExiftoolIsNotUsed(t *testing.T) {
+	for ver, want := range map[string]bool{"13.50": true, "12.76": true, "12.24": true, "12.23": false, "11.88": false, "garbage": false, "": false} {
+		dir := t.TempDir()
+		script := "#!/bin/sh\necho '" + ver + "'\n"
+		if err := os.WriteFile(filepath.Join(dir, "exiftool"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", dir)
+		tools := DetectTools()
+		if got := tools.Exiftool != ""; got != want {
+			t.Errorf("exiftool %q: used = %v, want %v", ver, got, want)
+		}
+		if !want && (len(tools.Warnings) != 1 || !strings.Contains(tools.Warnings[0], "exiftool")) {
+			t.Errorf("exiftool %q: warnings = %v", ver, tools.Warnings)
+		}
+		if tools.Has("raw") != want {
+			t.Errorf("exiftool %q: RAW support = %v", ver, tools.Has("raw"))
+		}
+	}
+}
+
+// Decoding a big image takes hundreds of megabytes. However many requests arrive at once, the pixels being
+// decoded together must stay within the budget, and every request must still be served.
+func TestDecodingStaysWithinThePixelBudget(t *testing.T) {
+	e := newEnv(t)
+	e.lib.setBudget(7_000_000) // room for two of the images below, not three
+	var inFlight, peak atomic.Int64
+	e.lib.decodeHook = func(d int64) {
+		now := inFlight.Add(d)
+		for {
+			old := peak.Load()
+			if now <= old || peak.CompareAndSwap(old, now) {
+				break
+			}
+		}
+	}
+	mt := time.Now().Add(-time.Hour)
+	for i := 0; i < 9; i++ {
+		e.writeJPEG(fmt.Sprintf("big%d.jpg", i), 2000+i, 1500, mt.Add(time.Duration(i)*time.Second)) // 3 megapixels each
+	}
+	e.scan()
+	var wg sync.WaitGroup
+	errs := make(chan error, 9)
+	for i := 0; i < 9; i++ {
+		p := e.photo(fmt.Sprintf("big%d.jpg", i))
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := e.lib.Variant(context.Background(), p, "thumb")
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("a request failed: %v", err)
+		}
+	}
+	if got := peak.Load(); got > 7_000_000 || got < 3_000_000 {
+		t.Errorf("peak of %d pixels decoding at once, want between 3 and 7 million", got)
+	}
+	if inFlight.Load() != 0 {
+		t.Errorf("%d pixels still counted as in flight", inFlight.Load())
+	}
+
+	// an image larger than the whole budget is not refused: it simply runs alone
+	e.lib.setBudget(1_000_000)
+	if _, err := e.lib.Variant(context.Background(), e.photo("big0.jpg"), "large"); err != nil {
+		t.Errorf("an image over the budget: %v", err)
+	}
+	// and waiting can be abandoned
+	e.lib.setBudget(3_100_000)
+	e.lib.budget.Acquire(context.Background(), 3_000_000)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := e.lib.Variant(ctx, e.photo("big1.jpg"), "large"); err == nil {
+		t.Error("a request that cannot get memory should give up when its client does")
 	}
 }

@@ -66,6 +66,16 @@ func (s *Server) failed(ip, name string) {
 
 func (s *Server) succeeded(ip, name string) { s.pairThr.Reset(ip + "|" + name) }
 
+// auditName is the user name to record for a login attempt: the real, canonical name when the account
+// exists, otherwise a placeholder. People type their password into the name field now and then, and
+// the audit log must not end up holding it.
+func (s *Server) auditName(typed string) string {
+	if u, err := s.store.UserByName(strings.TrimSpace(typed)); err == nil {
+		return u.Username
+	}
+	return "(unknown user)"
+}
+
 // ---- sign in ----
 
 type loginData struct{ Next string }
@@ -85,14 +95,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, pw, next := strings.TrimSpace(r.PostFormValue("username")), r.PostFormValue("password"), safeNext(r.PostFormValue("next"))
-	ip, nameKey := clientIP(r), strings.ToLower(name)
+	ip, nameKey := throttleAddr(clientIP(r)), strings.ToLower(name)
 
 	denied := func(code int, msg string) {
 		w.WriteHeader(code)
 		s.render(w, r, "login", page{Title: s.T(r, "Sign in"), Error: s.T(r, msg), Data: loginData{Next: next}})
 	}
 	if s.throttled(ip, nameKey) {
-		s.auditAs(r, "-", "login.blocked", name, "")
+		s.auditBlocked(r, "login.blocked", s.auditName(name), ip)
 		denied(http.StatusTooManyRequests, "Too many failed attempts. Try again later.")
 		return
 	}
@@ -100,13 +110,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil || u.Disabled {
 		auth.CheckDummy(pw)
 		s.failed(ip, nameKey)
-		s.auditAs(r, "-", "login.fail", name, "")
+		s.auditAs(r, "-", "login.fail", s.auditName(name), "")
 		denied(http.StatusUnauthorized, "Invalid username or password.")
 		return
 	}
 	if !auth.CheckPassword(u.PasswordHash, pw) {
 		s.failed(ip, nameKey)
-		s.auditAs(r, "-", "login.fail", name, "")
+		s.auditAs(r, "-", "login.fail", u.Username, "")
 		denied(http.StatusUnauthorized, "Invalid username or password.")
 		return
 	}
@@ -150,15 +160,15 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	u := st.User
 	next := safeNext(r.PostFormValue("next"))
 	norm := auth.NormalizeRecovery(r.PostFormValue("code"))
-	ip, nameKey := clientIP(r), strings.ToLower(u.Username)
+	ip, nameKey := throttleAddr(clientIP(r)), strings.ToLower(u.Username)
 
 	denied := func(code int, msg string) {
 		w.WriteHeader(code)
 		s.render(w, r, "mfa", page{Title: s.T(r, "Two-factor authentication"), Error: s.T(r, msg), Data: loginData{Next: next}})
 	}
-	if s.throttled(ip, nameKey) {
+	if s.throttled(ip, nameKey) || s.mfaThr.Blocked(nameKey) {
 		s.store.DeleteSession(st.Session.TokenHash)
-		s.auditAs(r, u.Username, "mfa.blocked", u.Username, "")
+		s.auditBlocked(r, "mfa.blocked", u.Username, ip)
 		denied(http.StatusTooManyRequests, "Too many failed attempts. Sign in again later.")
 		return
 	}
@@ -166,7 +176,10 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	ok, usedRecovery := false, false
 	switch {
 	case auth.LooksLikeRecovery(norm):
-		fresh, err := s.store.UseRecoveryCode(u.ID, auth.HashRecovery(norm))
+		fresh, err := s.store.UseRecoveryCode(u.ID, s.box.RecoveryHash(norm))
+		if err == nil && !fresh {
+			fresh, err = s.store.UseRecoveryCode(u.ID, auth.HashRecovery(norm)) // issued before codes were keyed
+		}
 		if err != nil {
 			s.serverError(w, r, err)
 			return
@@ -189,12 +202,14 @@ func (s *Server) handleMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		s.failed(ip, nameKey)
+		s.mfaThr.Fail(nameKey)
 		s.auditAs(r, u.Username, "mfa.fail", u.Username, "")
 		denied(http.StatusUnauthorized, "Invalid code.")
 		return
 	}
 	s.store.DeleteSession(st.Session.TokenHash)
 	s.succeeded(ip, nameKey)
+	s.mfaThr.Reset(nameKey)
 	if err := s.startSession(w, r, u.ID, false); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -256,7 +271,7 @@ type resetData struct{ Token string }
 func (s *Server) handleResetForm(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("t")
 	if _, err := s.store.ResetUser(auth.HashToken(token)); err != nil {
-		s.ipThr.Fail(clientIP(r))
+		s.ipThr.Fail(throttleAddr(clientIP(r)))
 		s.fail(w, r, http.StatusNotFound, "This reset link is invalid or has expired.")
 		return
 	}
@@ -267,7 +282,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	r.ParseForm()
 	token, pw, pw2 := r.PostFormValue("t"), r.PostFormValue("new"), r.PostFormValue("confirm")
-	ip := clientIP(r)
+	ip := throttleAddr(clientIP(r))
 	if s.ipThr.Blocked(ip) {
 		s.fail(w, r, http.StatusTooManyRequests, "Too many failed attempts. Try again later.")
 		return
@@ -427,7 +442,7 @@ func (s *Server) handleMFAStart(w http.ResponseWriter, r *http.Request) {
 
 // issueRecoveryCodes replaces the user's recovery codes and returns the new ones in plain text.
 func (s *Server) issueRecoveryCodes(u *store.User) ([]string, error) {
-	codes, hashes := auth.NewRecoveryCodes(10)
+	codes, hashes := auth.NewRecoveryCodes(10, s.box.RecoveryHash)
 	return codes, s.store.ReplaceRecoveryCodes(u.ID, hashes)
 }
 

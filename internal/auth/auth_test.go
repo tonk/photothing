@@ -4,6 +4,8 @@
 package auth
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -97,7 +99,11 @@ func TestThrottle(t *testing.T) {
 }
 
 func TestRecoveryCodes(t *testing.T) {
-	codes, hashes := NewRecoveryCodes(10)
+	box, err := LoadBox(filepath.Join(t.TempDir(), "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	codes, hashes := NewRecoveryCodes(10, box.RecoveryHash)
 	if len(codes) != 10 || len(hashes) != 10 {
 		t.Fatal("wrong count")
 	}
@@ -107,7 +113,7 @@ func TestRecoveryCodes(t *testing.T) {
 			t.Errorf("bad format %q", c)
 		}
 		n := NormalizeRecovery(strings.ToUpper(c))
-		if !LooksLikeRecovery(n) || HashRecovery(n) != hashes[i] {
+		if !LooksLikeRecovery(n) || box.RecoveryHash(n) != hashes[i] {
 			t.Errorf("code %q does not round-trip", c)
 		}
 		if seen[c] {
@@ -117,5 +123,49 @@ func TestRecoveryCodes(t *testing.T) {
 	}
 	if LooksLikeRecovery("123456") || LooksLikeRecovery("abcde-fghjk") {
 		t.Error("TOTP code or unnormalised input treated as recovery code")
+	}
+}
+
+func TestThrottleMemoryIsBounded(t *testing.T) {
+	th := NewThrottle(3, time.Hour)
+	for i := 0; i < throttleMaxKeys+5000; i++ {
+		th.Fail(fmt.Sprintf("attacker-%d", i))
+	}
+	if n := th.Len(); n > throttleMaxKeys {
+		t.Errorf("%d keys kept, the limit is %d", n, throttleMaxKeys)
+	}
+	// the throttle keeps working afterwards
+	for i := 0; i < 3; i++ {
+		th.Fail("victim")
+	}
+	if !th.Blocked("victim") {
+		t.Error("throttle no longer blocks after the cap was reached")
+	}
+}
+
+// The stored recovery codes can only be checked with the key from secret.key: a stolen copy of the
+// database alone cannot be used to find them, and a different key gives different values.
+func TestRecoveryHashIsKeyed(t *testing.T) {
+	a, _ := LoadBox(filepath.Join(t.TempDir(), "a"))
+	b, _ := LoadBox(filepath.Join(t.TempDir(), "b"))
+	const code = "abcdefghjk"
+	if a.RecoveryHash(code) != a.RecoveryHash(code) {
+		t.Error("not deterministic")
+	}
+	if a.RecoveryHash(code) == b.RecoveryHash(code) {
+		t.Error("two different keys give the same value")
+	}
+	if a.RecoveryHash(code) == HashRecovery(code) || !strings.HasPrefix(a.RecoveryHash(code), "v2:") {
+		t.Errorf("not distinguishable from the old unkeyed hash: %s", a.RecoveryHash(code))
+	}
+	if a.RecoveryHash(code) == a.RecoveryHash("abcdefghjm") {
+		t.Error("different codes collide")
+	}
+	// the key for the hash is derived, not the file's key itself
+	keyfile := filepath.Join(t.TempDir(), "k")
+	box, _ := LoadBox(keyfile)
+	raw, _ := os.ReadFile(keyfile)
+	if len(box.mac) != 32 || string(box.mac) == string(raw) {
+		t.Error("the recovery hash key must be derived from, and different from, the box key")
 	}
 }

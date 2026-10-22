@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+# Third-party actions are pinned to a commit, not to a tag that can be moved afterwards; the version is
+# in the comment. Dependabot (.github/dependabot.yml) proposes updates.
+
 concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
@@ -29,7 +32,7 @@ jobs:
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Tag is a semantic version with a CHANGELOG section
         id: check
         run: |
@@ -45,8 +48,8 @@ jobs:
     needs: verify
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
       # With the optional tools installed the video, HEIC and RAW tests run instead of being skipped.
@@ -66,8 +69,8 @@ jobs:
       matrix:
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
       - name: Install nfpm
@@ -105,7 +108,7 @@ jobs:
           test ! -e /usr/bin/photothing
           test -e /etc/photothing/photothing.conf   # configuration is kept on removal
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist-${{ matrix.arch }}
           path: |
@@ -121,8 +124,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: dist-*
           merge-multiple: true

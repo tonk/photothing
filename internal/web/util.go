@@ -6,6 +6,7 @@ package web
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,9 +17,20 @@ func itoa(n int) string         { return strconv.Itoa(n) }
 func ftoa(f float64) string     { return strconv.FormatFloat(f, 'f', 1, 64) }
 func urlEscape(s string) string { return url.QueryEscape(s) }
 
-// safeNext only allows local, absolute paths as redirect targets.
+// safeNext only allows local, absolute paths as redirect targets; anything else becomes "/".
+// Browsers delete tabs and line breaks from a URL before parsing it, so "/<tab>/evil.example" would turn
+// into the protocol-relative "//evil.example": control characters are refused outright.
 func safeNext(next string) string {
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.Contains(next, "\\") {
+		return "/"
+	}
+	for _, r := range next {
+		if r < 0x20 || r == 0x7f || r == '\u2028' || r == '\u2029' {
+			return "/"
+		}
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.Opaque != "" || !strings.HasPrefix(u.Path, "/") {
 		return "/"
 	}
 	return next
@@ -47,6 +59,17 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// throttleAddr is the address sign-in limits are counted on. An IPv6 network hands a single customer a
+// whole /64 block (billions of addresses); counting every address on its own would let one attacker
+// step around the limits, so IPv6 addresses are counted per /64.
+func throttleAddr(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil || a.Is4() || a.Is4In6() {
+		return ip
+	}
+	return netip.PrefixFrom(a, 64).Masked().String()
 }
 
 // cleanText trims text and removes control characters; it returns "" when nothing is left.

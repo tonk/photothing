@@ -86,8 +86,9 @@ keeps its id, caption, tags and covers; ambiguous cases (several identical files
 | editor | yes  | yes               | yes                                 | no                       |
 | admin  | yes  | yes               | yes                                 | yes                      |
 
-Video is streamed to every viewer (a browser must download it to play it). GPS coordinates are shown
-only to users who may download originals, since the originals carry them.
+Users who may not download originals get a video as a copy without metadata (made once with `ffmpeg`,
+without re-encoding, and cached), because a video file carries the place it was filmed in. GPS coordinates are
+shown only to users who may download originals, for the same reason.
 
 **Album access**: an admin can restrict an album (Admin → Album access). It, and everything below it,
 is then visible to admins and the selected users only: not in listings, counts, covers, search or tags,

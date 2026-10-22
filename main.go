@@ -166,6 +166,9 @@ func serve(cfg config, st *store.Store) error {
 		log.Printf("trusting X-Forwarded-* headers from %s", cfg.trustedProxy)
 	}
 	log.Printf("optional format support: %s", lib.Tools)
+	for _, w := range lib.Tools.Warnings {
+		log.Printf("warning: %s", w)
+	}
 	go housekeeping(ctx, cfg, st, lib)
 
 	hs := &http.Server{

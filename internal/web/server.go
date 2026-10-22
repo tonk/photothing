@@ -52,11 +52,16 @@ type Server struct {
 	trusted []netip.Prefix                           // proxies whose X-Forwarded-* headers are believed
 	pages   map[string]map[string]*template.Template // language -> page -> templates
 
-	// Login throttles: per client IP, per IP+username pair and (loosely) per username. The pair key
+	// Login throttles: per client IP (IPv6: per /64), per IP+username pair and (loosely, 200) per username. The pair key
 	// keeps an attacker from locking the real user out of their own sign-in.
 	ipThr   *auth.Throttle
 	pairThr *auth.Throttle
 	userThr *auth.Throttle
+	// mfaThr counts failed second-factor attempts per user. A six-digit code is guessable, so this is much
+	// stricter than the others: someone who knows the password must not be able to try codes from many addresses.
+	mfaThr *auth.Throttle
+	// logOnce lets the audit log mention a blocked visitor once per window instead of once per request.
+	logOnce *auth.Throttle
 }
 
 // assetVersion hashes the embedded static files; it is part of their URLs so that browsers fetch
@@ -112,7 +117,9 @@ func New(st *store.Store, lib *gallery.Library, box *auth.Box, opts Options) (*S
 		pages:   map[string]map[string]*template.Template{},
 		ipThr:   auth.NewThrottle(30, 15*time.Minute),
 		pairThr: auth.NewThrottle(5, 15*time.Minute),
-		userThr: auth.NewThrottle(60, 15*time.Minute)}
+		userThr: auth.NewThrottle(200, 15*time.Minute),
+		mfaThr:  auth.NewThrottle(10, 30*time.Minute),
+		logOnce: auth.NewThrottle(1, 15*time.Minute)}
 	for _, lang := range langs {
 		lang := lang
 		funcs := template.FuncMap{

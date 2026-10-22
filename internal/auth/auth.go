@@ -7,6 +7,7 @@ package auth
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -95,7 +96,10 @@ func HashToken(t string) string {
 
 // ---- secret box (encrypts TOTP seeds at rest) ----
 
-type Box struct{ aead cipher.AEAD }
+type Box struct {
+	aead cipher.AEAD
+	mac  []byte // key for hashing recovery codes, derived from the box key
+}
 
 // LoadBox reads the key from path, creating it (mode 0600) on first use.
 func LoadBox(path string) (*Box, error) {
@@ -119,7 +123,21 @@ func LoadBox(path string) (*Box, error) {
 		return nil, err
 	}
 	g, err := cipher.NewGCM(blk)
-	return &Box{aead: g}, err
+	if err != nil {
+		return nil, err
+	}
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte("photothing recovery code hash key v1")) // a separate key for a separate purpose
+	return &Box{aead: g, mac: m.Sum(nil)}, nil
+}
+
+// RecoveryHash is how a recovery code is stored: an HMAC under a key that lives in secret.key and not in
+// the database. A recovery code has only about 50 bits, which is little against a copy of a database
+// that was stolen without the key; with the key out of reach the stored values cannot be attacked at all.
+func (b *Box) RecoveryHash(norm string) string {
+	m := hmac.New(sha256.New, b.mac)
+	m.Write([]byte(norm))
+	return "v2:" + hex.EncodeToString(m.Sum(nil))
 }
 
 func (b *Box) Seal(plain string) string {
@@ -169,8 +187,9 @@ func MatchTOTP(secret, code string, now time.Time) (step int64, ok bool) {
 
 const recoveryAlphabet = "abcdefghjkmnpqrstuvwxyz23456789" // no look-alikes (i, l, o, 0, 1)
 
-// NewRecoveryCodes returns n codes formatted xxxxx-xxxxx and the hashes to store.
-func NewRecoveryCodes(n int) (codes, hashes []string) {
+// NewRecoveryCodes returns n codes formatted xxxxx-xxxxx and the values to store, made with hash
+// (Box.RecoveryHash).
+func NewRecoveryCodes(n int, hash func(string) string) (codes, hashes []string) {
 	for i := 0; i < n; i++ {
 		var b []byte
 		for len(b) < 10 {
@@ -185,7 +204,7 @@ func NewRecoveryCodes(n int) (codes, hashes []string) {
 			}
 		}
 		codes = append(codes, string(b[:5])+"-"+string(b[5:]))
-		hashes = append(hashes, HashRecovery(string(b)))
+		hashes = append(hashes, hash(string(b)))
 	}
 	return codes, hashes
 }
@@ -213,6 +232,8 @@ func LooksLikeRecovery(norm string) bool {
 	return true
 }
 
+// HashRecovery is the unkeyed hash that versions before 0.1.0-rc stored; it is still accepted for codes
+// that were issued then, and is never used for new ones.
 func HashRecovery(norm string) string { return HashToken("recovery:" + norm) }
 
 // ---- throttling ----
@@ -250,10 +271,28 @@ func (t *Throttle) Blocked(key string) bool {
 	return len(t.prune(key, time.Now())) >= t.max
 }
 
+// throttleMaxKeys bounds the memory of a Throttle: a flood of requests with ever-new keys (random user
+// names) must not grow it without limit.
+const throttleMaxKeys = 100_000
+
+func (t *Throttle) Len() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.fails)
+}
+
 func (t *Throttle) Fail(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	now := time.Now()
+	if len(t.fails) >= throttleMaxKeys {
+		for k := range t.fails { // forget what has expired
+			t.prune(k, now)
+		}
+		if len(t.fails) >= throttleMaxKeys { // still full of live entries: start over rather than grow
+			t.fails = map[string][]time.Time{}
+		}
+	}
 	t.prune(key, now)
 	t.fails[key] = append(t.fails[key], now)
 }

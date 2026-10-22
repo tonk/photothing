@@ -509,9 +509,29 @@ type AuditEntry struct {
 	IP     string
 }
 
+// Failed and blocked sign-ins can be produced by anybody, as often as they like. They are kept apart from
+// the entries that record what administrators and users did, and only the newest auditNoiseKeep of them
+// are kept, so a flood can neither fill the disk nor push the real history out of the log.
+const auditNoiseKeep = 20_000
+
+const noisyActions = `'login.fail','login.blocked','mfa.fail','mfa.blocked'`
+
 func (s *Store) AddAudit(e AuditEntry) error {
-	_, err := s.db.Exec(`INSERT INTO audit(ts, actor, action, target, detail, ip) VALUES(?,?,?,?,?,?)`,
+	for _, f := range []*string{&e.Actor, &e.Target, &e.Detail, &e.IP} { // nothing unbounded goes into the log
+		if r := []rune(*f); len(r) > 200 {
+			*f = string(r[:200])
+		}
+	}
+	res, err := s.db.Exec(`INSERT INTO audit(ts, actor, action, target, detail, ip) VALUES(?,?,?,?,?,?)`,
 		time.Now().Unix(), e.Actor, e.Action, e.Target, e.Detail, e.IP)
+	if err != nil {
+		return err
+	}
+	// Trim every so often rather than on each insert: one id in a hundred triggers the clean-up.
+	if id, _ := res.LastInsertId(); id%100 == 0 && strings.Contains(noisyActions, "'"+e.Action+"'") {
+		_, err = s.db.Exec(`DELETE FROM audit WHERE action IN (`+noisyActions+`) AND id <= COALESCE(
+			(SELECT id FROM audit WHERE action IN (`+noisyActions+`) ORDER BY id DESC LIMIT 1 OFFSET ?), 0)`, auditNoiseKeep)
+	}
 	return err
 }
 

@@ -37,6 +37,21 @@ RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictRealtime=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+# Only ordinary system calls; no privileged ones. Tried with ffmpeg, heif-convert and exiftool at work.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Decoding a huge image takes up to about 850 MB (photothing limits itself to that); a hard ceiling for
+# everything the service and its tools use can be set here.
+#MemoryMax=2G
 
 [Install]
 WantedBy=multi-user.target

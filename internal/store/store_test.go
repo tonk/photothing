@@ -6,6 +6,7 @@ package store
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -128,5 +129,46 @@ func TestSubAlbumsRespectsAccessAndCovers(t *testing.T) {
 	}
 	if subs, _ = st.SubAlbums("", all); subs[0].Cover != secretID {
 		t.Error("explicit cover ignored for a visitor who may see it")
+	}
+}
+
+// Anybody can make failed sign-ins happen, as many as they like. They must not fill the disk, and they
+// must not push the record of what people actually did out of the log.
+func TestAuditNoiseIsBoundedAndNeverCrowdsOutRealEntries(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, a := range []string{"user.create", "access.set", "user.role"} {
+		st.AddAudit(AuditEntry{Actor: "admin", Action: a, Target: "x"})
+	}
+	long := strings.Repeat("é", 5000)
+	for i := 0; i < auditNoiseKeep+5000; i++ {
+		st.AddAudit(AuditEntry{Actor: "-", Action: "login.fail", Target: "(unknown user)", IP: "203.0.113.9"})
+	}
+	st.AddAudit(AuditEntry{Actor: long, Action: "user.delete", Target: long, Detail: long, IP: long})
+
+	count := func(where string) int {
+		var n int
+		st.db.QueryRow(`SELECT COUNT(*) FROM audit WHERE ` + where).Scan(&n)
+		return n
+	}
+	if n := count(`action = 'login.fail'`); n > auditNoiseKeep+400 || n < auditNoiseKeep {
+		t.Errorf("%d failed-login rows kept; want about %d", n, auditNoiseKeep)
+	}
+	if n := count(`action NOT IN (` + noisyActions + `)`); n != 4 {
+		t.Errorf("%d real entries survive, want all 4", n)
+	}
+	var target string
+	st.db.QueryRow(`SELECT target FROM audit WHERE action = 'user.delete'`).Scan(&target)
+	if n := len([]rune(target)); n != 200 {
+		t.Errorf("an over-long field was stored with %d characters, want 200", n)
+	}
+	// the newest noisy rows are the ones that stay
+	var newest int64
+	st.db.QueryRow(`SELECT MAX(id) FROM audit WHERE action = 'login.fail'`).Scan(&newest)
+	if newest < int64(auditNoiseKeep+5000) {
+		t.Errorf("the newest failed login has id %d: old rows were kept instead of new ones", newest)
 	}
 }

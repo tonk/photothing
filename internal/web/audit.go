@@ -24,3 +24,14 @@ func (s *Server) auditAs(r *http.Request, actor, action, target, detail string) 
 		log.Printf("audit %s: %v", action, err)
 	}
 }
+
+// auditBlocked records that sign-ins from this source are being refused, once per window and source:
+// a blocked client can keep sending requests, and each one must not become a row.
+func (s *Server) auditBlocked(r *http.Request, action, target, source string) {
+	key := action + "|" + source
+	if s.logOnce.Blocked(key) {
+		return
+	}
+	s.logOnce.Fail(key)
+	s.auditAs(r, "-", action, target, "")
+}
