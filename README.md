@@ -197,7 +197,11 @@ has a section for it, runs the tests, builds for linux/amd64 and linux/arm64, in
 runner as a smoke test, and publishes a release with the changelog section as its notes. A tag such as
 `v1.2.3-rc.1` becomes a pre-release (`1.2.3~rc.1` in the packages, which sorts before `1.2.3`). Each release
 holds, per architecture, `photothing_X.Y.Z_linux_ARCH.tar.gz`, `photothing_X.Y.Z-1_ARCH.deb` and
-`photothing-X.Y.Z-1.ARCH.rpm`, plus `SHA256SUMS`. Set the repository variable `MAINTAINER` ("Name <address>")
+`photothing-X.Y.Z-1.ARCH.rpm`, plus `SHA256SUMS`. To try the workflow, or a change to it, without using up a version number, start a **dry run**: Actions >
+Release > Run workflow (or `gh workflow run release.yml`). It runs every test and builds every package under the
+version `0.0.0-dryrun.N`, and publishes nothing. The tests that need ffmpeg, libheif and exiftool run in a job of
+their own (installing ffmpeg downloads about ninety packages, which can be slow); a release needs that job to
+pass, the build does not wait for it. Set the repository variable `MAINTAINER` ("Name <address>")
 to fill the maintainer field of the packages. The workflow also sets the source address shown in the
 About box to the repository it runs in.
 

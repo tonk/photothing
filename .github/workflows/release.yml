@@ -5,11 +5,16 @@
 # The tag must be a semantic version (v1.2.3, v1.2.3-rc.1) and CHANGELOG.md must have a section for it,
 # which becomes the release notes. A tag with a "-" (v1.2.3-rc.1) is published as a pre-release.
 # The release holds, for linux/amd64 and linux/arm64: a tarball, a .deb and an .rpm, plus SHA256SUMS.
+#
+# Dry run: start the workflow by hand (Actions > Release > Run workflow, or `gh workflow run release.yml`).
+# It runs every test and builds every package, as it would for a tag, but publishes nothing. Use it to
+# try the workflow, or a change to it, without using up a version number.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,7 +42,11 @@ jobs:
       - name: Tag is a semantic version with a CHANGELOG section
         id: check
         run: |
-          version="$(scripts/check-release.sh "$GITHUB_REF_NAME")"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version="$(scripts/check-release.sh "$GITHUB_REF_NAME")"
+          else
+            version="0.0.0-dryrun.${GITHUB_RUN_NUMBER}" # a dry run builds under a version that cannot be mistaken for a release
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           case "$version" in
             *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
@@ -54,15 +63,44 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
-      # With the optional tools installed the video, HEIC and RAW tests run instead of being skipped.
-      - name: Install the optional tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libheif-examples libimage-exiftool-perl
+      # No optional tools here, so this job does not depend on a package mirror: the tests that need ffmpeg,
+      # libheif or exiftool skip themselves. The next job runs them.
       - name: Formatting
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
       # A test that hangs fails after 12 minutes with a dump of what every goroutine was doing, instead of
       # keeping the job busy for hours. (The first run on a cold build cache is slow: modernc.org/sqlite is large.)
       - run: go test -count=1 -timeout 12m ./...
+
+  test-tools:
+    name: Test with ffmpeg, libheif and exiftool
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      # ffmpeg alone pulls in about ninety packages, and the runner's package mirror is sometimes very slow
+      # (the first run took 25 minutes to download them and never reached the tests). So: retries and timeouts
+      # on the connection, a time limit on this step, and a job of its own that does not hold up the build.
+      - name: Install the optional tools
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${opts[@]}" update
+          sudo apt-get "${opts[@]}" install -y --no-install-recommends ffmpeg libheif-examples libimage-exiftool-perl
+      - name: Show what was installed
+        run: |
+          ffmpeg -version | head -1
+          exiftool -ver
+          heif-convert --version || true
+          command -v heif-enc || echo "heif-enc is not installed: the HEIC tests will skip"
+      # Only the packages whose tests use the tools; the rest was tested in the job above.
+      - run: go test -count=1 -timeout 12m ./internal/gallery ./internal/web
 
   build:
     name: Build ${{ matrix.arch }}
@@ -124,7 +162,8 @@ jobs:
 
   release:
     name: Publish the release
-    needs: [verify, build]
+    needs: [verify, build, test-tools]
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
