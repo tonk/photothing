@@ -1,19 +1,20 @@
-# Put this file in /etc/nginx/conf.d/ (or sites-available/ and link it into sites-enabled/), adjust
-# server_name, the certificate paths and the upstream port, then:  nginx -t && systemctl reload nginx
+# One file per photothing instance, in /etc/nginx/conf.d/ (or in sites-available/, linked into sites-enabled/).
+# Adjust the server_name, the certificate paths and the port of the upstream, then:
+#     sudo nginx -t && sudo systemctl reload nginx
+#
+# FIRST install nginx-limits.conf.example once, as /etc/nginx/conf.d/photothing-limits.conf. This file only
+# refers to the zone defined there (limit_req zone=photothing_login) and does not define it, so it can be copied
+# for every further instance:
+#     cp nginx.conf.example /etc/nginx/conf.d/photothing-werk.conf
+# and in the copy change exactly four things: the upstream name (photothing_familie, must be unique), its port
+# (see addr in that instance's configuration), the server_name and the two certificate paths.
 #
 # nginx in front of one photothing instance (see config.example: trusted-proxy = 127.0.0.1).
-# For a second instance, copy this file with another server_name, upstream name and port. Leave the
-# limit_req_zone line out of the copy (or give the zone another name): nginx refuses a zone name twice.
 
 upstream photothing_familie {
     server 127.0.0.1:8081;
     keepalive 8;
 }
-
-# A second line of defence in front of photothing's own login limits: at most 30 requests a minute per
-# address on /login (a burst of 10 is let through). This must be in the http context, which is where
-# files in conf.d/ are included.
-limit_req_zone $binary_remote_addr zone=photothing_login:10m rate=30r/m;
 
 server {
     listen 80;
@@ -52,6 +53,7 @@ server {
     proxy_read_timeout 120s;
 
     location = /login {
+        # the zone is defined in photothing-limits.conf (see the top of this file)
         limit_req zone=photothing_login burst=10 nodelay;
         proxy_pass http://photothing_familie;
     }
