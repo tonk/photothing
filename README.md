@@ -56,7 +56,10 @@ starts the instance configured in `/etc/photothing/familie.conf`.
 ## Behind a reverse proxy (nginx)
 
 Run photothing on a loopback port and let nginx handle TLS (`contrib/nginx.conf.example`: a server block
-for `/etc/nginx/conf.d/`, plus a redirect from http to https). Every request
+for `/etc/nginx/conf.d/`, plus a redirect from http to https, one file per instance). Install
+`contrib/nginx-limits.conf.example` **once** as `/etc/nginx/conf.d/photothing-limits.conf`: it defines the rate-limit
+zone that every instance file refers to. (Without it nginx stops with `zero size shared memory zone
+"photothing_login"`.) Every request
 then arrives from nginx, so photothing needs to be told which headers to believe:
 
     trusted-proxy = 127.0.0.1
@@ -233,7 +236,7 @@ the source address.
     main.go, config.go      CLI, settings and configuration file, server start-up, housekeeping
     contrib/                systemd units, nginx configuration (config.example is in the root)
     packaging/              build.sh, version.sh, nfpm.yaml and the install scripts of the .deb and .rpm
-    scripts/                what the release workflow runs: tag check, release notes, third-party licenses
+    scripts/                what the release workflow runs: tag check, release notes, third-party licenses, installing the test tools
     .github/workflows/      the release workflow
     internal/store          SQLite schema, upgrades and queries
     internal/auth           passwords, RBAC, TOTP, recovery codes, secret box, throttle

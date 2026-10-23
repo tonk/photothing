@@ -41,6 +41,8 @@ contents:
     dst: /usr/share/doc/photothing/config.example
   - src: contrib/nginx.conf.example
     dst: /usr/share/doc/photothing/nginx.conf.example
+  - src: contrib/nginx-limits.conf.example
+    dst: /usr/share/doc/photothing/nginx-limits.conf.example
   # rpm marks the license file (%license); deb has no such type and would leave the file out.
   - src: LICENSE
     dst: /usr/share/doc/photothing/LICENSE

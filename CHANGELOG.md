@@ -12,6 +12,18 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+### Changed
+- nginx example: the rate-limit zone is defined in a file of its own (`contrib/nginx-limits.conf.example`, installed
+  once), and the instance file only refers to it. With several instances the zone used to be defined in the file
+  of the first, so removing that file, or leaving the definition out of a copy while the first was not loaded,
+  made nginx stop with `zero size shared memory zone "photothing_login"`. The packages ship both files.
+- Release workflow: the tools for the tests are installed by `scripts/install-optional-tools.sh`, which
+  downloads the packages in attempts that are cut short (apt resumes them) and installs from the cache. A very
+  slow package mirror made one dry run exceed its time limit; now it only takes longer.
+- Release workflow: `actions/checkout` 7.0.1 and `actions/download-artifact` 8.0.2.
+- A dry run now also fetches the artifacts again and checks the checksums, so an update of the download action
+  can be tried before a tag.
+
 ### Fixed
 - A build from a commit that has no tag could be given a version that is not a semantic version: when the short
   hash of the commit was all digits and began with a zero (one commit in about 150), a number with a leading zero
