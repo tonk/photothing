@@ -12,6 +12,8 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-23
+
 ### Added
 - `site-title` setting (`-site-title`, `PHOTOTHING_SITE_TITLE`): the name of the gallery. The header then reads
   `Logo  <title> - PhotoThing` (without a title: `Logo  PhotoThing`), and the browser tab shows
