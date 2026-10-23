@@ -233,7 +233,7 @@ the source address.
     main.go, config.go      CLI, settings and configuration file, server start-up, housekeeping
     contrib/                systemd units, nginx configuration (config.example is in the root)
     packaging/              build.sh, version.sh, nfpm.yaml and the install scripts of the .deb and .rpm
-    scripts/                what the release workflow runs: tag check, release notes, third-party licenses
+    scripts/                what the release workflow runs: tag check, release notes, third-party licenses, installing the test tools
     .github/workflows/      the release workflow
     internal/store          SQLite schema, upgrades and queries
     internal/auth           passwords, RBAC, TOTP, recovery codes, secret box, throttle
