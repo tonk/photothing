@@ -134,7 +134,7 @@ jobs:
         run: |
           tar -xzf "dist/photothing_${VERSION}_linux_amd64.tar.gz" -C "$RUNNER_TEMP"
           "$RUNNER_TEMP/photothing_${VERSION}_linux_amd64/photothing" --version | tee /dev/stderr | grep -F "photothing ${VERSION} "
-      - name: The .deb installs and removes cleanly
+      - name: The .deb installs, the service runs in its sandbox, and the package removes cleanly
         if: matrix.arch == 'amd64'
         env:
           VERSION: ${{ needs.verify.outputs.version }}
@@ -146,10 +146,37 @@ jobs:
           id photothing
           test "$(stat -c '%U:%G %a' /etc/photothing/photothing.conf)" = "root:photothing 640"
           systemd-analyze verify /lib/systemd/system/photothing.service /lib/systemd/system/photothing@.service
-          photothing --config=/etc/photothing/photothing.conf config
+          # The configuration is readable by root and the service user only, so commands run as that user
+          # (from a directory that user can enter).
+          cd /
+          sudo -u photothing photothing --config=/etc/photothing/photothing.conf config
+
+          # Start the service as a user would, which puts the unit's sandbox (no capabilities, a system call
+          # filter, a read-only file system) to work for real.
+          sudo mkdir -p /srv/photos
+          sudo systemctl start photothing
+          for i in $(seq 1 30); do curl -fsS -o /tmp/login.html http://127.0.0.1:8080/login && break; sleep 1; done
+          grep -q PhotoThing /tmp/login.html
+          systemctl is-active photothing
+          sudo -u photothing test -s /var/lib/photothing/photothing.db   # the state directory works
+          # An account made the documented way, as the service user, while the service runs.
+          set +x
+          pw="$(openssl rand -hex 16)"
+          printf '%s\n' "$pw" | sudo -u photothing photothing --config=/etc/photothing/photothing.conf user add ci admin
+          set -x
+          sudo -u photothing photothing --config=/etc/photothing/photothing.conf user list | grep -q '^ci '
+          sudo journalctl -u photothing --no-pager | tail -n 15
+          sudo systemctl stop photothing
+
           sudo apt-get remove -y photothing
           test ! -e /usr/bin/photothing
           test -e /etc/photothing/photothing.conf   # configuration is kept on removal
+          test -e /var/lib/photothing/photothing.db # and so is the data
+      - name: What the service logged
+        if: failure() && matrix.arch == 'amd64'
+        run: |
+          sudo journalctl -u photothing --no-pager | tail -n 60 || true
+          sudo systemctl status photothing --no-pager || true
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
