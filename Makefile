@@ -7,7 +7,7 @@ CONFIG  ?=
 # with CONFIG=file the settings come from that configuration file instead of PHOTOS/DATA/ADDR
 FLAGS   = $(if $(CONFIG),--config=$(CONFIG),-photos $(PHOTOS) -data $(DATA) -addr $(ADDR))
 # The version comes from the latest tag (v1.2.3 -> 1.2.3); between tags it is e.g. 1.2.3-4-g0a1b2c3, and
-# without any tag 0.0.0-dev.<hash>. Override with VERSION=1.2.3.
+# without any tag 0.0.0-dev.g<hash>. Override with VERSION=1.2.3.
 VERSION ?= $(shell packaging/version.sh)
 override VERSION := $(patsubst v%,%,$(VERSION))
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null)

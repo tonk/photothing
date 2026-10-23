@@ -12,6 +12,11 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+### Fixed
+- A build from a commit that has no tag could be given a version that is not a semantic version: when the short
+  hash of the commit was all digits and began with a zero (one commit in about 150), a number with a leading zero
+  ended up in the version. The hash now follows a `g`, as in `git describe`.
+
 ## [0.1.2] - 2026-10-23
 
 The first version that is published with packages. `0.1.0` and `0.1.1` were tagged, but the release workflow
