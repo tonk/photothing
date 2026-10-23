@@ -171,7 +171,7 @@ jobs:
           sudo apt-get remove -y photothing
           test ! -e /usr/bin/photothing
           test -e /etc/photothing/photothing.conf   # configuration is kept on removal
-          test -e /var/lib/photothing/photothing.db # and so is the data
+          sudo test -e /var/lib/photothing/photothing.db # and so is the data (the directory is private to its user)
       - name: What the service logged
         if: failure() && matrix.arch == 'amd64'
         run: |
