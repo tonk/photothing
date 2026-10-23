@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"photothing/internal/web"
 )
@@ -25,6 +26,7 @@ type config struct {
 	photos, data, addr string
 	secure             bool
 	trustedProxy       string
+	siteTitle          string
 	scanEvery          time.Duration
 	backupDir          string
 	backupKeep         int
@@ -49,6 +51,7 @@ func newFlagSet(cfg *config) *flag.FlagSet {
 	fs.StringVar(&cfg.addr, "addr", env("PHOTOTHING_ADDR", "127.0.0.1:8080"), "listen address")
 	fs.BoolVar(&cfg.secure, "secure-cookies", os.Getenv("PHOTOTHING_SECURE_COOKIES") == "1", "always mark cookies Secure (HTTPS seen through a trusted proxy does this automatically)")
 	fs.StringVar(&cfg.trustedProxy, "trusted-proxy", env("PHOTOTHING_TRUSTED_PROXY", ""), "comma-separated addresses/CIDRs of reverse proxies whose X-Forwarded-For/-Proto headers are believed")
+	fs.StringVar(&cfg.siteTitle, "site-title", env("PHOTOTHING_SITE_TITLE", ""), "name of this gallery, shown in the header next to PhotoThing and in the browser tab (optional)")
 	fs.DurationVar(&cfg.scanEvery, "scan-interval", envDuration("PHOTOTHING_SCAN_INTERVAL", 10*time.Minute), "rescan the photo directory this often (0 = only at start and from the Admin page)")
 	fs.StringVar(&cfg.backupDir, "backup-dir", env("PHOTOTHING_BACKUP_DIR", ""), "write automatic backups to this directory (serve only)")
 	fs.IntVar(&cfg.backupKeep, "backup-keep", 7, "number of automatic backups to keep")
@@ -178,8 +181,29 @@ func cleanFlagErr(err error) string {
 	return err.Error()
 }
 
+// maxSiteTitle is the longest site title, in characters; the header has to fit it next to the logo.
+const maxSiteTitle = 80
+
+// cleanSiteTitle trims the title and rejects what does not belong in a header or a tab: control characters
+// (they would also be a way to smuggle line breaks into the page title) and absurd lengths.
+func cleanSiteTitle(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f || r == '\u2028' || r == '\u2029' {
+			return "", errors.New("site-title must not contain control characters or line breaks")
+		}
+	}
+	if n := utf8.RuneCountInString(s); n > maxSiteTitle {
+		return "", fmt.Errorf("site-title has %d characters; the most is %d", n, maxSiteTitle)
+	}
+	return s, nil
+}
+
 // validate checks the settings that can be checked without starting anything.
 func (c config) validate() error {
+	if _, err := cleanSiteTitle(c.siteTitle); err != nil {
+		return err
+	}
 	if _, err := web.ParseTrustedProxies(c.trustedProxy); err != nil {
 		return err
 	}
@@ -203,6 +227,7 @@ func (c config) lines() []string {
 		"addr = " + c.addr,
 		"secure-cookies = " + strconv.FormatBool(c.secure),
 		"trusted-proxy = " + c.trustedProxy,
+		"site-title = " + c.siteTitle,
 		"scan-interval = " + c.scanEvery.String(),
 		"backup-dir = " + c.backupDir,
 		"backup-keep = " + strconv.Itoa(c.backupKeep),

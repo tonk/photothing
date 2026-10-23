@@ -330,3 +330,54 @@ func TestPackagedConfigIsValid(t *testing.T) {
 		}
 	}
 }
+
+func TestSiteTitle(t *testing.T) {
+	clearEnv(t)
+	cfg, _, err := parseArgs(nil)
+	if err != nil || cfg.siteTitle != "" {
+		t.Fatalf("default: %q %v", cfg.siteTitle, err)
+	}
+	// environment < file < command line, like every setting
+	t.Setenv("PHOTOTHING_SITE_TITLE", "From the environment")
+	if cfg, _, _ = parseArgs(nil); cfg.siteTitle != "From the environment" {
+		t.Errorf("environment: %q", cfg.siteTitle)
+	}
+	conf := writeConf(t, t.TempDir(), "x.conf", "site-title = \"Familiefoto's – 📷\"\n")
+	if cfg, _, err = parseArgs([]string{"--config=" + conf}); err != nil || cfg.siteTitle != "Familiefoto's – 📷" {
+		t.Errorf("file: %q %v", cfg.siteTitle, err)
+	}
+	if cfg, _, _ = parseArgs([]string{"-site-title", "Werk", "--config=" + conf}); cfg.siteTitle != "Werk" {
+		t.Errorf("command line: %q", cfg.siteTitle)
+	}
+	if !strings.Contains(strings.Join(cfg.lines(), "\n"), "site-title = Werk") {
+		t.Error("the config command does not show the site title")
+	}
+}
+
+func TestSiteTitleRules(t *testing.T) {
+	ok := map[string]string{
+		"":                      "",
+		"  Familie  ":           "Familie",
+		"Mijn foto's & video's": "Mijn foto's & video's",
+		"Ünïcode – ✓":           "Ünïcode – ✓",
+		strings.Repeat("é", 80): strings.Repeat("é", 80),
+	}
+	for in, want := range ok {
+		if got, err := cleanSiteTitle(in); err != nil || got != want {
+			t.Errorf("%q: got %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"two\nlines", "tab\there", "bell\a", "nul\x00", "del\x7f", "a\u2028b", "a\u2029b", strings.Repeat("é", 81)} {
+		if _, err := cleanSiteTitle(bad); err == nil {
+			t.Errorf("%q was accepted", bad)
+		}
+		c := config{siteTitle: bad, backupKeep: 7}
+		if err := c.validate(); err == nil || !strings.Contains(err.Error(), "site-title") {
+			t.Errorf("validate accepted %q: %v", bad, err)
+		}
+	}
+	// the server refuses to start with a bad title instead of putting it in every page
+	if err := run(config{data: t.TempDir(), siteTitle: "a\nb", backupKeep: 7}, []string{"serve"}); err == nil || !strings.Contains(err.Error(), "site-title") {
+		t.Errorf("serve with a bad title: %v", err)
+	}
+}

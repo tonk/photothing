@@ -139,3 +139,11 @@ dialog.about dt { color: var(--muted); }
 dialog.about dd { margin: 0; overflow-wrap: anywhere; }
 dialog.about .button { display: block; margin: 0 auto; }
 dialog.about code { padding: 0; border: 0; background: none; font-size: .8rem; }
+
+/* the site title next to the logo: Logo  <Title> - PhotoThing. A long title is only cut short (with an ellipsis)
+   when it no longer fits on the line; the rest of the header wraps below it first. */
+.brand { min-width: 0; max-width: 100%; }
+.brand .site { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand .logo, .brand .sep, .brand .product { flex: none; }
+.brand .sep { color: var(--muted); font-weight: 400; margin: 0 -.15rem; }
+.brand.titled .product { color: var(--muted); font-weight: 400; }

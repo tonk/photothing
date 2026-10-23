@@ -12,6 +12,11 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+### Added
+- `site-title` setting (`-site-title`, `PHOTOTHING_SITE_TITLE`): the name of the gallery. The header then reads
+  `Logo  <title> - PhotoThing` (without a title: `Logo  PhotoThing`), and the browser tab shows
+  `<page> · <title>` instead of `<page> · PhotoThing`. Useful with several instances.
+
 ### Changed
 - nginx example: the rate-limit zone is defined in a file of its own (`contrib/nginx-limits.conf.example`, installed
   once), and the instance file only refers to it. With several instances the zone used to be defined in the file

@@ -45,13 +45,14 @@ const (
 var pageNames = []string{"album", "photo", "search", "login", "mfa", "reset", "account", "admin", "audit", "access", "error"}
 
 type Server struct {
-	store   *store.Store
-	lib     *gallery.Library
-	box     *auth.Box
-	about   aboutView
-	secure  bool                                     // always set the Secure flag on cookies (use behind TLS)
-	trusted []netip.Prefix                           // proxies whose X-Forwarded-* headers are believed
-	pages   map[string]map[string]*template.Template // language -> page -> templates
+	store     *store.Store
+	lib       *gallery.Library
+	box       *auth.Box
+	about     aboutView
+	siteTitle string
+	secure    bool                                     // always set the Secure flag on cookies (use behind TLS)
+	trusted   []netip.Prefix                           // proxies whose X-Forwarded-* headers are believed
+	pages     map[string]map[string]*template.Template // language -> page -> templates
 
 	// Login throttles: per client IP (IPv6: per /64), per IP+username pair and (loosely, 200) per username. The pair key
 	// keeps an attacker from locking the real user out of their own sign-in.
@@ -100,6 +101,7 @@ type aboutView struct {
 // Options configure the server.
 type Options struct {
 	About          About
+	SiteTitle      string         // name of this gallery (optional): shown in the header and in the tab title
 	SecureCookies  bool           // mark cookies Secure even when HTTPS is not detected
 	TrustedProxies []netip.Prefix // see ParseTrustedProxies
 }
@@ -112,7 +114,7 @@ func New(st *store.Store, lib *gallery.Library, box *auth.Box, opts Options) (*S
 	if len(opts.About.Commit) > 12 && !strings.HasSuffix(opts.About.Commit, "-dirty") {
 		opts.About.Commit = opts.About.Commit[:12]
 	}
-	s := &Server{store: st, lib: lib, box: box, secure: opts.SecureCookies, trusted: opts.TrustedProxies,
+	s := &Server{store: st, lib: lib, box: box, secure: opts.SecureCookies, trusted: opts.TrustedProxies, siteTitle: opts.SiteTitle,
 		about: aboutView{About: opts.About, Go: runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH,
 			RepoLink: strings.HasPrefix(opts.About.RepoURL, "https://") || strings.HasPrefix(opts.About.RepoURL, "http://")},
 		pages:   map[string]map[string]*template.Template{},
@@ -335,22 +337,23 @@ func (s *Server) redirectToLogin(w http.ResponseWriter, r *http.Request) {
 // ---- rendering ----
 
 type page struct {
-	Title  string
-	User   *store.User
-	Public bool
-	Flash  string
-	Error  string
-	Data   any
-	Lang   string
-	Langs  []string
-	About  aboutView
-	Path   string // current request URI, for the language switch
+	Title     string
+	User      *store.User
+	Public    bool
+	Flash     string
+	Error     string
+	Data      any
+	Lang      string
+	Langs     []string
+	About     aboutView
+	Path      string // current request URI, for the language switch
+	SiteTitle string
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, p page) {
 	p.User = s.current(r)
 	p.Public = s.publicMode()
-	p.Lang, p.Langs, p.Path, p.About = s.state(r).Lang, langs, r.URL.RequestURI(), s.about
+	p.Lang, p.Langs, p.Path, p.About, p.SiteTitle = s.state(r).Lang, langs, r.URL.RequestURI(), s.about, s.siteTitle
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := s.pages[p.Lang][name].ExecuteTemplate(w, "base", p); err != nil {

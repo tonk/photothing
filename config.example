@@ -64,6 +64,16 @@ trusted-proxy = 127.0.0.1
 secure-cookies = false
 
 
+# ---- Appearance ------------------------------------------------------------------------------------
+
+# site-title: the name of this gallery, for installations with several instances or a name worth showing.
+# With a title, the header reads  Logo  <title> - PhotoThing  and the browser tab says  <page> . <title>;
+# without one, just  Logo  PhotoThing  and  <page> . PhotoThing. Up to 80 characters, no line breaks. It is
+# not translated: write it in the language you want. Leave it out for the default.
+#   default: (empty)           flag: -site-title      environment: PHOTOTHING_SITE_TITLE
+site-title = Family photos
+
+
 # ---- Keeping the library up to date ----------------------------------------------------------------
 
 # scan-interval: how often to look for new, changed, renamed and removed photos. A scan only reads file

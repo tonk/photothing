@@ -149,7 +149,8 @@ func serve(cfg config, st *store.Store) error {
 		return err
 	}
 	v, c := buildVersion()
-	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted,
+	title, _ := cleanSiteTitle(cfg.siteTitle) // validated above
+	srv, err := web.New(st, lib, box, web.Options{SecureCookies: cfg.secure, TrustedProxies: trusted, SiteTitle: title,
 		About: web.About{Version: v, Commit: c, RepoURL: repoURL, Author: author, License: license, LicenseURL: licenseURL}})
 	if err != nil {
 		return err
@@ -164,6 +165,9 @@ func serve(cfg config, st *store.Store) error {
 	}
 	if len(trusted) > 0 {
 		log.Printf("trusting X-Forwarded-* headers from %s", cfg.trustedProxy)
+	}
+	if title != "" {
+		log.Printf("site title: %s", title)
 	}
 	log.Printf("optional format support: %s", lib.Tools)
 	for _, w := range lib.Tools.Warnings {

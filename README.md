@@ -28,6 +28,7 @@ variable, configuration file, command-line flag.
 | `-config` / `--config=FILE` | `PHOTOTHING_CONFIG` | none | read settings from this file |
 | `-secure-cookies` | `PHOTOTHING_SECURE_COOKIES=1` | off | always mark cookies Secure (https seen through a trusted proxy does this by itself) |
 | `-trusted-proxy` | `PHOTOTHING_TRUSTED_PROXY` | none | addresses/CIDRs of reverse proxies whose `X-Forwarded-For`/`-Proto` are believed |
+| `-site-title` | `PHOTOTHING_SITE_TITLE` | none | name of this gallery: shown as `Logo  <title> - PhotoThing` in the header and in the browser tab (up to 80 characters) |
 | `-scan-interval` | `PHOTOTHING_SCAN_INTERVAL` | `10m` | rescan the photo directory this often; `0` = only at start and from the Admin page |
 | `-backup-dir` | `PHOTOTHING_BACKUP_DIR` | none | write automatic backups here |
 | `-backup-keep` / `-backup-every` | | `7` / `24h` | how many to keep and how often |

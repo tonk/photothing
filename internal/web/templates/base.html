@@ -32,7 +32,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · PhotoThing</title>
+<title>{{.Title}} · {{if .SiteTitle}}{{.SiteTitle}}{{else}}PhotoThing{{end}}</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css?v={{v}}">
 <script src="/static/theme.js?v={{v}}"></script>
@@ -41,7 +41,7 @@
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="/">{{template "logo"}}<span>PhotoThing</span></a>
+  <a class="brand{{if .SiteTitle}} titled{{end}}" href="/">{{template "logo"}}{{if .SiteTitle}}<span class="site">{{.SiteTitle}}</span><span class="sep" aria-hidden="true">–</span>{{end}}<span class="product">PhotoThing</span></a>
   <nav>
     {{if or .User .Public}}
     <form class="search" action="/search" method="get" role="search">
