@@ -130,3 +130,37 @@ func TestDefaultSourceAddress(t *testing.T) {
 		t.Errorf("source address %q should be the page of the repository, without .git or a trailing slash", repoURL)
 	}
 }
+
+// What a build gets as its version when it is not on a tag. Every case must be a valid semantic version, and the
+// bare hashes that broke the first rule (digits only, starting with a zero) are the ones to look at.
+func TestVersionOfUntaggedBuilds(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not installed")
+	}
+	cases := map[string]string{
+		"v0.1.2":                  "0.1.2",
+		"v0.1.2-3-g0a1b2c3":       "0.1.2-3-g0a1b2c3",
+		"v0.1.2-3-g0508346":       "0.1.2-3-g0508346", // git describe already puts the g there
+		"v0.1.2-3-g0508346-dirty": "0.1.2-3-g0508346-dirty",
+		"v1.0.0-rc.1":             "1.0.0-rc.1",
+		"0508346":                 "0.0.0-dev.g0508346", // all digits, leading zero: the case that was invalid
+		"0000000":                 "0.0.0-dev.g0000000",
+		"1234567":                 "0.0.0-dev.g1234567",
+		"abcdef0":                 "0.0.0-dev.gabcdef0",
+		"0508346-dirty":           "0.0.0-dev.g0508346-dirty",
+		"":                        "0.0.0-dev.gunknown",
+	}
+	valid := regexp.MustCompile(`^` + semverRE + `$`)
+	for describe, want := range cases {
+		cmd := exec.Command("bash", "packaging/version.sh")
+		cmd.Env = append(os.Environ(), "VERSION_DESCRIBE="+describe, "VERSION=")
+		out, err := cmd.Output()
+		got := strings.TrimSpace(string(out))
+		if err != nil || got != want {
+			t.Errorf("git describe %q gave %q (%v), want %q", describe, got, err, want)
+		}
+		if !valid.MatchString(got) {
+			t.Errorf("git describe %q gave %q, which is not a semantic version", describe, got)
+		}
+	}
+}
