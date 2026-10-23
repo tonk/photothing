@@ -12,13 +12,20 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-23
+
+The first version that is published with packages. `0.1.0` and `0.1.1` were tagged, but the release workflow
+could not finish for them (it never got past installing ffmpeg from a very slow package mirror), so there is no
+release for those two; everything they contain is in this one.
+
 ### Changed
 - Release workflow: the tests that need ffmpeg, libheif or exiftool run in a job of their own, with retries and
-  time limits on the package download. The first two releases never got past installing them: the runner's
-  package mirror delivered about ninety packages in 25 minutes. The build no longer waits for that job; the
-  release does.
+  time limits on the package download. The build no longer waits for that job; the release does.
 - Release workflow: a dry run can be started by hand (Actions > Release > Run workflow). It runs all tests and
   builds all packages under a made-up version, and publishes nothing.
+- The package test in the workflow installs the `.deb` on a clean machine, starts the service as a user would
+  (so the systemd sandbox runs for real), checks that the login page answers, that an account can be made as
+  the service user, and that removing the package keeps the configuration and the data.
 
 ## [0.1.1] - 2026-10-22
 
