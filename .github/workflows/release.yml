@@ -7,7 +7,7 @@
 # The release holds, for linux/amd64 and linux/arm64: a tarball, a .deb and an .rpm, plus SHA256SUMS.
 #
 # Dry run: start the workflow by hand (Actions > Release > Run workflow, or `gh workflow run release.yml`).
-# It runs every test and builds every package, as it would for a tag, but publishes nothing. Use it to
+# It runs every test, builds every package and fetches them again, as it would for a tag, but publishes nothing. Use it to
 # try the workflow, or a change to it, without using up a version number.
 name: Release
 
@@ -190,7 +190,6 @@ jobs:
   release:
     name: Publish the release
     needs: [verify, build, test-tools]
-    if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -202,13 +201,19 @@ jobs:
           pattern: dist-*
           merge-multiple: true
           path: dist
-      - name: Checksums and release notes
+      # Everything up to the last step also runs in a dry run, so that fetching the artifacts (and the version of
+      # the download action that does it) is tried before a tag is. Only the notes and the publication need a tag.
+      - name: Checksums
+        run: |
+          (cd dist && sha256sum photothing* > SHA256SUMS && cat SHA256SUMS && sha256sum -c SHA256SUMS)
+          ls -l dist
+      - name: Release notes
+        if: github.ref_type == 'tag'
         env:
           VERSION: ${{ needs.verify.outputs.version }}
-        run: |
-          (cd dist && sha256sum photothing* > SHA256SUMS && cat SHA256SUMS)
-          scripts/release-notes.sh "$VERSION" > notes.md
+        run: scripts/release-notes.sh "$VERSION" > notes.md
       - name: Create the release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
