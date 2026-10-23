@@ -1,0 +1,14 @@
+# Install this file ONCE, however many photothing instances you run, as
+#
+#     /etc/nginx/conf.d/photothing-limits.conf
+#
+# It defines the memory zone that the instance files (nginx.conf.example) refer to. It must stay outside any
+# server { } block: it belongs in the http context, which is where nginx includes the files of conf.d/.
+# A zone name may be defined only once. If it is missing, or if this file is not loaded, nginx refuses to start
+# with: zero size shared memory zone "photothing_login".
+#
+# Check with:  sudo nginx -T | grep -n limit_req     (one limit_req_zone, and the limit_req lines that use it)
+
+# A second line of defence in front of photothing's own login limits: at most 30 requests a minute per
+# address on /login (a burst of 10 is let through). All instances share this zone: the count is per address.
+limit_req_zone $binary_remote_addr zone=photothing_login:10m rate=30r/m;

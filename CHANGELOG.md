@@ -13,12 +13,36 @@ Pre-releases (`v1.0.0-rc.1`) are published as pre-releases.
 ## [Unreleased]
 
 ### Changed
+- nginx example: the rate-limit zone is defined in a file of its own (`contrib/nginx-limits.conf.example`, installed
+  once), and the instance file only refers to it. With several instances the zone used to be defined in the file
+  of the first, so removing that file, or leaving the definition out of a copy while the first was not loaded,
+  made nginx stop with `zero size shared memory zone "photothing_login"`. The packages ship both files.
+- Release workflow: the tools for the tests are installed by `scripts/install-optional-tools.sh`, which
+  downloads the packages in attempts that are cut short (apt resumes them) and installs from the cache. A very
+  slow package mirror made one dry run exceed its time limit; now it only takes longer.
+- Release workflow: `actions/checkout` 7.0.1 and `actions/download-artifact` 8.0.2.
+- A dry run now also fetches the artifacts again and checks the checksums, so an update of the download action
+  can be tried before a tag.
+
+### Fixed
+- A build from a commit that has no tag could be given a version that is not a semantic version: when the short
+  hash of the commit was all digits and began with a zero (one commit in about 150), a number with a leading zero
+  ended up in the version. The hash now follows a `g`, as in `git describe`.
+
+## [0.1.2] - 2026-10-23
+
+The first version that is published with packages. `0.1.0` and `0.1.1` were tagged, but the release workflow
+could not finish for them (it never got past installing ffmpeg from a very slow package mirror), so there is no
+release for those two; everything they contain is in this one.
+
+### Changed
 - Release workflow: the tests that need ffmpeg, libheif or exiftool run in a job of their own, with retries and
-  time limits on the package download. The first two releases never got past installing them: the runner's
-  package mirror delivered about ninety packages in 25 minutes. The build no longer waits for that job; the
-  release does.
+  time limits on the package download. The build no longer waits for that job; the release does.
 - Release workflow: a dry run can be started by hand (Actions > Release > Run workflow). It runs all tests and
   builds all packages under a made-up version, and publishes nothing.
+- The package test in the workflow installs the `.deb` on a clean machine, starts the service as a user would
+  (so the systemd sandbox runs for real), checks that the login page answers, that an account can be made as
+  the service user, and that removing the package keeps the configuration and the data.
 
 ## [0.1.1] - 2026-10-22
 
